@@ -1,1 +1,49 @@
+import com.atlassian.jira.component.ComponentAccessor
+import groovy.json.JsonBuilder
+import com.onresolve.scriptrunner.runner.customisers.WithPlugin
+import com.onresolve.scriptrunner.runner.rest.common.CustomRestClient
+import com.onresolve.scriptrunner.runner.util.UserMessageUtil
+import com.atlassian.jira.user.ApplicationUser
+
+// Replace with your dashboard ID and Jira domain
+def dashboardId = "your_dashboard_id"
+def baseUrl = ComponentAccessor.getApplicationProperties().getString("jira.baseurl")
+def apiUrl = "${baseUrl}/rest/api/3/dashboard/${dashboardId}"
+
+// Set up authentication (replace with your email and API token)
+def email = "email@example.com"
+def apiToken = "your_api_token"
+
+// Construct the payload using Groovy's JSON builder
+def payload = new JsonBuilder()
+payload {
+    description "A dashboard to help auditors identify a sample of issues to check."
+    name "Auditors dashboard"
+    editPermissions([])
+    sharePermissions([
+        [type: "global"]
+    ])
+}
+
+// Set up the HTTP client
+@WithPlugin("com.onresolve.scriptrunner.scriptrunner")
+def httpClient = new CustomRestClient()
+
+try {
+    // Make the PUT request to update the dashboard
+    def response = httpClient.put(apiUrl)
+        .header("Authorization", "Basic " + "${email}:${apiToken}".bytes.encodeBase64().toString())
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .body(payload.toString())
+        .execute()
+
+    if (response.status >= 200 && response.status < 300) {
+        log.warn("Successfully updated the dashboard with ID ${dashboardId}. Response: ${response.body}")
+    } else {
+        log.warn("Failed to update the dashboard. Status: ${response.status}. Response: ${response.body}")
+    }
+} catch (Exception e) {
+    log.warn("An error occurred while making the request: ${e.message}")
+}
 
