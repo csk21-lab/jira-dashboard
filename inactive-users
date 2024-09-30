@@ -1,0 +1,138 @@
+import com.atlassian.jira.security.login.LoginManager
+import com.atlassian.crowd.manager.directory.DirectoryManager
+import com.atlassian.jira.bc.user.UserService
+import com.atlassian.jira.component.ComponentAccessor
+import com.atlassian.jira.user.ApplicationUser
+
+import com.atlassian.jira.issue.search.SearchProvider
+import com.atlassian.jira.jql.parser.JqlQueryParser
+import com.atlassian.jira.web.bean.PagerFilter
+import com.atlassian.jira.issue.search
+
+
+def userManager = ComponentAccessor.userManager
+def directoryManager = ComponentAccessor.getComponent(DirectoryManager)
+def loginManager = ComponentAccessor.getComponent(LoginManager)
+def groupManager = ComponentAccessor.getGroupManager()
+def userService = ComponentAccessor.getComponent(UserService)
+def loggedInUser = ComponentAccessor.jiraAuthenticationContext.loggedInUser
+def runLog = []
+
+def internalDirectory = 1
+def daysOfInactivity = 350
+def inactiveUsers = []
+def neverLoggedInUsers = []
+def activeUsers = []
+Date today = new Date()
+def cutoffDate = today - daysOfInactivity
+
+userManager.allApplicationUsers.each { user ->
+    def directory = directoryManager.findDirectoryById(user.directoryId)
+    if(directory.id == internalDirectory){
+        def logininfo = loginManager.getLoginInfo(user.username)
+        // log.warn("IF BLOCK logininfo &&&&& ${logininfo.toString()}")
+        if(logininfo){
+            if(logininfo.lastLoginTime != null){
+                def lastLogOn = new Date(logininfo.lastLoginTime)
+                if(lastLogOn.before(cutoffDate)){
+                    inactiveUsers << user.username
+                } else if (lastLogOn.after(cutoffDate)){
+                    activeUsers << user.username
+                }
+            } else {
+                neverLoggedInUsers << user.username
+            }
+        }
+    }
+}
+
+// Combine inactive users and users who never logged in
+def combinedInactiveUsers = inactiveUsers + neverLoggedInUsers
+def totalInactiveUsers = inactiveUsers.size()
+def totalNeverLoggedInUsers = neverLoggedInUsers.size()
+def totalCombinedInactiveUsers = combinedInactiveUsers.size()
+
+// Display list of inactive users
+log.warn("List of inactive users usernames : ${inactiveUsers.toString()}")
+log.warn("Total number of inactive users : ${totalInactiveUsers}")
+
+// List of active users
+log.warn("List of active users : ${activeUsers.toString()}")
+log.warn("Total number of active users : ${activeUsers.size()}")
+
+// Display the list of users who have never logged in
+def neverLoggedInList = neverLoggedInUsers.join(", ")
+log.warn("Total number of totalNeverLoggedInUsers : ${totalNeverLoggedInUsers}")
+log.warn("List of users who have never logged in :\n${neverLoggedInList}")
+log.warn("Total number of users either inactive or never logged in : ${totalCombinedInactiveUsers}")
+
+// Remove inactive users
+inactiveUsers.take(2).each { username ->
+    ApplicationUser userToDelete = userManager.getUserByName(username)
+    if(userToDelete){
+        replaceAssignee(username) // search and replace the inactive user have any assigned issues
+        replaceReporter(username) // search and replace the inactive user have any reported issues
+        def result = userService.validateDeleteUser(loggedInUser, userToDelete)
+        if(result.isValid()){
+            userService.removeUser(loggedInUser, result)
+            log.warn("user is removed ${username}")
+        } else {
+            log.warn("failed to remove user ${username}: " + result.getErrorCollection().errorMessages)
+        }
+    } else {
+        log.warn("username not found : ${username}")
+    }
+}
+
+neverLoggedInUsers.take(10).each { it ->
+    ApplicationUser userToDelete = userManager.getUserByName(it)
+    if(userToDelete){
+        def groupNames = groupManager.getGroupNamesForUser(userToDelete)
+        final UserService.DeleteUserValidationResult result = userService.validateDeleteUser(loggedInUser, userToDelete)
+        if (result.isValid() && groupNames != "jira-administrators") {
+            userService.removeUser(loggedInUser, result)
+            runLog += "User with username $it removed"
+            groupNames.each { groupName ->
+                if (groupName != "WEB_USERS_AP") {
+                    addUserToGroup(groupManager, userManager, it, groupName)
+                }
+            }
+        } else {
+            runLog += "Failed to remove user with username $it. " + result.getErrorCollection().errorMessages + "\r"
+        }
+    }
+}
+
+"<pre>${runLog}</pre>"
+
+// Function to add a user to a group
+def addUserToGroup(groupManager, userManager, userName, groupName) {
+
+    def group = groupManager.getGroup(groupName)
+    ApplicationUser user = userManager.getUserByName(userName)
+    if(!user){
+        log.warn("User not found with name : ${userName} to add to Group")
+    }
+    if(group && user){
+        ComponentAccessor.userUtil.addUserToGroup(group, user)
+    } else {
+        log.warn("group not found with name : ${groupName}")
+    }
+
+}
+
+def replaceAssignee(username){
+    Issues.search("assignee = ${username}")?.each { issue ->
+        issue.update {
+            setAssignee('ABCD') // set assignee
+        }
+    }
+}
+
+def replaceReporter(username){
+    Issues.search("reporter = ${username}")?.each { issue ->
+        issue.update {
+            setReporter('ABCD') // set assignee
+        }
+    }
+}
