@@ -11,7 +11,8 @@ archivedProjects.each { project ->
     def projectName = project.getName()
 
     if (projectLead) {
-        log.warn("Archived Project: ${projectName}, Project Lead: ${projectLead.displayName} (${projectLead.name})")
+        // Use getKey() to retrieve the username
+        log.warn("Archived Project: ${projectName}, Project Lead: ${projectLead.displayName} (Username: ${projectLead.getKey()})")
     } else {
         log.warn("Archived Project: ${projectName} has no assigned project lead.")
     }
