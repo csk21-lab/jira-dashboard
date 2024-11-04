@@ -38,3 +38,30 @@ archivedProjects.each { project ->
 
 // Log the completion of the script
 log.info("Completed processing archived project details.")
+
+
+
+import com.atlassian.jira.component.ComponentAccessor
+import org.apache.log4j.Level
+import org.apache.log4j.Logger
+
+def log = Logger.getLogger("in.ravisagar.sr4j")
+log.setLevel(Level.DEBUG)
+
+def projectManager = ComponentAccessor.getProjectManager()
+projectManager.getProjects().each { project ->
+    log.debug("Project Key: ${project.key}")
+    log.debug("Issue Types: ${project.getIssueTypes()*.name}")
+    log.debug("Components: ${project.getComponents()*.name}")
+    
+    // Safely get the project lead's username
+    def projectLead = project.getProjectLead()
+    if (projectLead) {
+        log.debug("Project Lead: ${projectLead.getUsername()}")
+    } else {
+        log.debug("Project Lead: None")
+    }
+
+    log.debug("Versions: ${project.getVersions()*.name}")
+    log.debug("Project Category: ${project.getProjectCategoryObject()?.name}")
+}
