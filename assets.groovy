@@ -42,13 +42,16 @@ def searchService = ComponentAccessor.getComponentOfType(com.atlassian.jira.bc.i
 def loggedInUser = ComponentAccessor.jiraAuthenticationContext.loggedInUser as ApplicationUser
 
 try {
+    // Parse and validate the JQL query
     def parseResult = searchService.parseQuery(loggedInUser, jqlQuery)
     if (!parseResult.isValid()) {
         log.error("Invalid JQL query: ${jqlQuery}")
         return
     }
 
-    def searchResults = searchService.search(loggedInUser, parseResult.getQuery(), com.atlassian.jira.web.bean.PagerFilter.getUnlimitedFilter())
+    // Extract the Query object and perform the search
+    def query = parseResult.getQuery()
+    def searchResults = searchService.search(loggedInUser, query, com.atlassian.jira.web.bean.PagerFilter.getUnlimitedFilter())
 
     if (searchResults.getResults()) {
         log.warn("Issue already exists for Applications: ${applicationName}, Category: ${categoryName}")
