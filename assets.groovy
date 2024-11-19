@@ -5,9 +5,6 @@ import com.atlassian.jira.user.ApplicationUser
 // Load required OSGi components
 def iqlFacadeClass = ComponentAccessor.getPluginAccessor().getClassLoader().findClass("com.riadalabs.jira.plugins.insight.channel.external.api.facade.IQLFacade")
 def iqlFacade = ComponentAccessor.getOSGiComponentInstanceOfType(iqlFacadeClass)
-def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(
-    ComponentAccessor.getPluginAccessor().getClassLoader().findClass("com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectFacade")
-)
 
 // Configuration
 def jiraProjectId = 11403 // Replace with your project ID
@@ -42,14 +39,12 @@ def searchService = ComponentAccessor.getComponentOfType(com.atlassian.jira.bc.i
 def loggedInUser = ComponentAccessor.jiraAuthenticationContext.loggedInUser as ApplicationUser
 
 try {
-    // Parse and validate the JQL query
     def parseResult = searchService.parseQuery(loggedInUser, jqlQuery)
     if (!parseResult.isValid()) {
         log.error("Invalid JQL query: ${jqlQuery}")
         return
     }
 
-    // Extract the Query object and perform the search
     def query = parseResult.getQuery()
     def searchResults = searchService.search(loggedInUser, query, com.atlassian.jira.web.bean.PagerFilter.getUnlimitedFilter())
 
@@ -82,7 +77,11 @@ try {
 
     // Set the custom field value
     if (vulCategoryField) {
-        issue.setCustomFieldValue(vulCategoryField, "${applicationName}, ${categoryName}")
+        def customFieldValue = "${applicationName}, ${categoryName}"
+        log.warn("Setting custom field 'Vulnerability Details' to: ${customFieldValue}")
+        issue.setCustomFieldValue(vulCategoryField, customFieldValue)
+    } else {
+        log.error("Custom field 'Vulnerability Details' not found or not configured!")
     }
 
     // Save the issue
@@ -90,4 +89,5 @@ try {
     log.warn("Issue created successfully: ${createdIssue.key}")
 } catch (Exception e) {
     log.error("Error creating issue: ${e.message}")
+    log.error("Ensure all required fields are populated and workflows are configured properly.")
 }
