@@ -1,14 +1,6 @@
-POST /rest/api/2/issue/RES-231580/attachments HTTP/1.1
-Host: jiradev.build.corp.oncor.com
-Accept: application/json
-Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
-X-Atlassian-Token: nocheck
-Authorization: Bearer jhvjhvjhvjhk
-Content-Length: 173
-
-----WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="file"; filename="text.png"
-Content-Type: image/png
-
-(data)
-----WebKitFormBoundary7MA4YWxkTrZu0gW
+curl --location --request POST 'https://jiradev.build.corp.oncor.com/rest/api/2/issue/RES-231580/attachments' \
+--header 'Accept: application/json' \
+--header 'Content-Type: multipart/form-data' \
+--header 'X-Atlassian-Token: nocheck' \
+--header 'Authorization: Bearer jhvjhvjhvjhk' \
+--form 'file=@"/Users/ckorshika/Desktop/text.png"'
