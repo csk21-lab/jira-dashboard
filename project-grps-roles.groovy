@@ -15,6 +15,7 @@ def rolesMissingGroup = []  // List to store roles with missing groups
 // Specify the project keys you want to check
 def projectkeys = ["ABC", "DEF"]
 projectkeys.each { projectKey ->
+    // Get the project using the Project Manager
     Project project = ComponentAccessor.getProjectManager().getProjectByKey(projectKey)
     ProjectRoleManager projectRoleManager = ComponentAccessor.getComponent(ProjectRoleManager)
     GroupManager groupManager = ComponentAccessor.getGroupManager()
@@ -27,22 +28,23 @@ projectkeys.each { projectKey ->
     groupRoles.each { role ->
         result += "<b>" + role.toString() + "</b>\r"
         def projectRoleMembers = projectRoleManager.getProjectRoleActors(role, project)
-        
-        // Check if a group is associated with the role
+
+        // Check if any group is associated with the role
         def groupsinRole = projectRoleManager.getProjectRoleActors(role, project).findAll { it instanceof ProjectRoleActor.GroupRoleActor }
         
         if (groupsinRole.isEmpty()) {
-            // If no group is associated, add to the missing groups list
+            // If no group is associated with this role, add it to the missing group list
             rolesMissingGroup << role.toString()
         }
 
-        // Skip displaying role members if you don't need them
+        // Skipping the part for displaying user information if not needed
         // projectRoleMembers.each { projectRoleActor ->
         //     def user = projectRoleActor.getUser()
         //     result += "User: " + user.getUsername() + "\r"
         // }
     }
 
+    // For roles that are missing groups, display the roles
     def groupsinRole = []
     if (groupsinRole.size() > 0) {
         result += "Groups in this role:\r"
@@ -56,7 +58,7 @@ projectkeys.each { projectKey ->
     result = ""
 }
 
-// If any role is missing its group, display the roles
+// If any roles are missing corresponding groups, display the missing roles
 if (rolesMissingGroup.size() > 0) {
     finalResult += "The following roles are missing corresponding groups:\r"
     rolesMissingGroup.each { role ->
