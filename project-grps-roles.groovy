@@ -1,6 +1,7 @@
 import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.security.roles.ProjectRoleManager
 import com.atlassian.jira.security.roles.ProjectRoleActor
+import com.atlassian.jira.security.roles.GroupRoleActor
 import com.atlassian.jira.security.groups.GroupManager
 import com.atlassian.jira.user.util.UserManager
 import com.atlassian.jira.project.Project  // Import Project class
@@ -29,9 +30,14 @@ projectkeys.each { projectKey ->
         result += "<b>" + role.toString() + "</b>\r"
         def projectRoleMembers = projectRoleManager.getProjectRoleActors(role, project)
 
-        // Check if any group is associated with the role
-        def groupsinRole = projectRoleManager.getProjectRoleActors(role, project).findAll { it instanceof ProjectRoleActor.GroupRoleActor }
-        
+        // Check if a group is associated with the role
+        def groupsinRole = []
+        projectRoleMembers.each { projectRoleActor ->
+            if (projectRoleActor instanceof GroupRoleActor) {
+                groupsinRole.add(projectRoleActor)
+            }
+        }
+
         if (groupsinRole.isEmpty()) {
             // If no group is associated with this role, add it to the missing group list
             rolesMissingGroup << role.toString()
