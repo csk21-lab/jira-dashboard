@@ -6,35 +6,43 @@ import com.atlassian.jira.security.groups.GroupManager
 import com.atlassian.jira.user.util.UserManager
 import com.atlassian.jira.project.Project
 
-String groupnamesinRole
-String allusersinRole
 String result = ""
 String finalResult = ""
-def userList = []
 def rolesMissingGroup = []  // List to store roles with missing groups
 
 // Specify the project key you want to check (for one project)
 def projectKey = "ABC"  // Replace with your project key
-def project = ComponentAccessor.getProjectManager().getProjectByKey(projectKey)
+def project = ComponentAccessor.getProjectManager().getProjectByKey(projectKey)  // Get the Project object using the project key
 
 ProjectRoleManager projectRoleManager = ComponentAccessor.getComponent(ProjectRoleManager)
 GroupManager groupManager = ComponentAccessor.getGroupManager()
 UserManager userManager = ComponentAccessor.getUserManager() as UserManager
-def groupRoles = projectRoleManager.getProjectRoles(project)
+
+// Fetch project roles for the given project
+def groupRoles = projectRoleManager.getProjectRoles(project)  // Pass the Project object, not the key
 
 result += "Project Name: " + project.name + "\r"
 result += "Project Key: " + project.key + "\r\n"
 
 groupRoles.each { role ->
     result += "<b>" + role.toString() + "</b>\r"
+    
+    // Retrieve all project role actors (users and groups)
     def projectRoleMembers = projectRoleManager.getProjectRoleActors(role, project)
+    
+    // To check for group-role actors, filter them
+    def groupRoleActors = []
+    projectRoleMembers.each { projectRoleActor ->
+        if (projectRoleActor instanceof GroupRoleActor) {
+            groupRoleActors << projectRoleActor
+        }
+    }
 
-    // Check if a group is associated with the role using HAPI method
-    def groupRoleActors = projectRoleManager.getProjectRoleActorsByRoleType(role, project, ProjectRoleActor.GroupRoleActor)
+    // If no group is associated with this role, add it to the missing group list
     if (groupRoleActors.isEmpty()) {
-        // If no group is associated with this role, add it to the missing group list
         rolesMissingGroup << role.toString()
     } else {
+        // List groups associated with this role
         groupRoleActors.each { groupRoleActor ->
             result += "Group: " + groupRoleActor.getGroup().getName() + "\r"
         }
@@ -42,15 +50,9 @@ groupRoles.each { role ->
 
     // Skipping the part for displaying user information if not needed
     projectRoleMembers.each { projectRoleActor ->
-        def user = projectRoleActor.getUser()
-        result += "User: " + user.getUsername() + "\r"
-
-        // Using HAPI to check if the user is a member of a specific role in the project
-        def isMember = user.isMemberOfRole(role, project)
-        if (isMember) {
-            result += "User is a member of the ${role} role in project ${project.name}\r"
-        } else {
-            result += "User is NOT a member of the ${role} role in project ${project.name}\r"
+        if (projectRoleActor instanceof ProjectRoleActor.UserRoleActor) {
+            def user = projectRoleActor.getUser()
+            result += "User: " + user.getUsername() + "\r"
         }
     }
 }
