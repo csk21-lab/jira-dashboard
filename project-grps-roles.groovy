@@ -19,7 +19,7 @@ GroupManager groupManager = ComponentAccessor.getGroupManager()
 UserManager userManager = ComponentAccessor.getUserManager() as UserManager
 
 // Fetch project roles for the given project
-def groupRoles = projectRoleManager.getProjectRoles(project)  // Pass the Project object, not the key
+def groupRoles = projectRoleManager.getProjectRoles(project)
 
 result += "Project Name: " + project.name + "\r"
 result += "Project Key: " + project.key + "\r\n"
@@ -45,14 +45,6 @@ groupRoles.each { role ->
         // List groups associated with this role
         groupRoleActors.each { groupRoleActor ->
             result += "Group: " + groupRoleActor.getGroup().getName() + "\r"
-        }
-    }
-
-    // Skipping the part for displaying user information if not needed
-    projectRoleMembers.each { projectRoleActor ->
-        if (projectRoleActor instanceof ProjectRoleActor.UserRoleActor) {
-            def user = projectRoleActor.getUser()
-            result += "User: " + user.getUsername() + "\r"
         }
     }
 }
