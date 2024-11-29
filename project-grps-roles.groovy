@@ -3,6 +3,7 @@ import com.atlassian.jira.security.roles.ProjectRoleManager
 import com.atlassian.jira.security.roles.ProjectRoleActor
 import com.atlassian.jira.security.groups.GroupManager
 import com.atlassian.jira.user.util.UserManager
+import com.atlassian.jira.project.Project  // Import Project class
 
 String groupnamesinRole
 String allusersinRole
@@ -64,4 +65,3 @@ if (rolesMissingGroup.size() > 0) {
 }
 
 "<pre>$finalResult</pre>"
-
