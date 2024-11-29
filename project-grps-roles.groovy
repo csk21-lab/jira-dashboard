@@ -4,7 +4,6 @@ import com.atlassian.jira.security.roles.ProjectRoleActor
 import com.atlassian.jira.security.roles.GroupRoleActor
 import com.atlassian.jira.security.groups.GroupManager
 import com.atlassian.jira.user.util.UserManager
-import com.atlassian.jira.project.Project  // Import Project class
 
 String groupnamesinRole
 String allusersinRole
@@ -17,7 +16,7 @@ def rolesMissingGroup = []  // List to store roles with missing groups
 def projectkeys = ["ABC", "DEF"]
 projectkeys.each { projectKey ->
     // Get the project using the Project Manager
-    Project project = ComponentAccessor.getProjectManager().getProjectByKey(projectKey)
+    def project = ComponentAccessor.getProjectManager().getProjectByKey(projectKey)
     ProjectRoleManager projectRoleManager = ComponentAccessor.getComponent(ProjectRoleManager)
     GroupManager groupManager = ComponentAccessor.getGroupManager()
     UserManager userManager = ComponentAccessor.getUserManager() as UserManager
