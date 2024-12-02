@@ -6,21 +6,31 @@ import com.atlassian.jira.security.roles.ProjectRoleActor
 def projectManager = ComponentAccessor.getProjectManager()
 def projectRoleManager = ComponentAccessor.getComponent(ProjectRoleManager)
 def projects = projectManager.getProjects()
-def requiredRoles = ["Administrators", "Developers", "Project Manager"]
+def expectedGroups = ["Group1", "Group2", "Group3"] // Define expected groups here
+
+def projectsWithMissingGroups = []
 
 projects.each { project ->
     def projectRoles = projectRoleManager.getProjectRoles(project)
-    def roleNames = projectRoles.collect { it.getName() }
-    def missingRoles = requiredRoles.findAll { !roleNames.contains(it) }
-    String missingRolesInfo = missingRoles.isEmpty() ? "" : " Missing Roles: ${missingRoles.join(', ')}"
+    boolean missingGroups = false
 
     projectRoles.each { role ->
         def groups = projectRoleManager.getProjectRoleActors(role, project).getRoleActorsByType(ProjectRoleActor.GROUP_ROLE_ACTOR_TYPE)
-        String groupInfo = groups.isEmpty() ? "No groups" : "Groups exist"
-        log.warn("${project.getName()} - ${role.getName()} : ${groupInfo}${missingRolesInfo}")
+        def groupNames = groups.collect { it.getGroup().getName() }
+        def missingInRole = expectedGroups.findAll { !groupNames.contains(it) }
+
+        if (!missingInRole.isEmpty()) {
+            missingGroups = true
+        }
     }
 
-    if (projectRoles.isEmpty()) {
-        log.warn("${project.getName()} - No roles defined${missingRolesInfo}")
+    if (missingGroups) {
+        projectsWithMissingGroups.add(project.getName())
     }
+}
+
+if (!projectsWithMissingGroups.isEmpty()) {
+    log.warn("Projects with missing groups: ${projectsWithMissingGroups.join(', ')}")
+} else {
+    log.warn("All projects have the necessary groups assigned to roles.")
 }
