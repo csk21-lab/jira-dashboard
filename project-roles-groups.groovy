@@ -6,31 +6,39 @@ import com.atlassian.jira.security.roles.ProjectRoleActor
 def projectManager = ComponentAccessor.getProjectManager()
 def projectRoleManager = ComponentAccessor.getComponent(ProjectRoleManager)
 def projects = projectManager.getProjects()
-def expectedGroups = ["Group1", "Group2", "Group3"] // Define expected groups here
 
-def projectsWithMissingGroups = []
+// Initialize a map to store dynamic expected groups
+def dynamicExpectedGroups = [:]
 
 projects.each { project ->
     def projectRoles = projectRoleManager.getProjectRoles(project)
-    boolean missingGroups = false
-
     projectRoles.each { role ->
-        def groups = projectRoleManager.getProjectRoleActors(role, project).getRoleActorsByType(ProjectRoleActor.GROUP_ROLE_ACTOR_TYPE)
-        def groupNames = groups.collect { it.getGroup().getName() }
-        def missingInRole = expectedGroups.findAll { !groupNames.contains(it) }
-
-        if (!missingInRole.isEmpty()) {
-            missingGroups = true
-        }
-    }
-
-    if (missingGroups) {
-        projectsWithMissingGroups.add(project.getName())
+        // Assuming every role should have at least one group, populate expected groups
+        dynamicExpectedGroups["${project.getName()}_${role.getName()}"] = []
     }
 }
 
-if (!projectsWithMissingGroups.isEmpty()) {
-    log.warn("Projects with missing groups: ${projectsWithMissingGroups.join(', ')}")
+// Check each project and role for group associations
+def missingGroupDetails = []
+
+projects.each { project ->
+    def projectRoles = projectRoleManager.getProjectRoles(project)
+    projectRoles.each { role ->
+        def projectRoleIdentifier = "${project.getName()}_${role.getName()}"
+        def groups = projectRoleManager.getProjectRoleActors(role, project).getRoleActorsByType(ProjectRoleActor.GROUP_ROLE_ACTOR_TYPE)
+        def groupNames = groups.collect { it.getGroup().getName() }
+
+        // Check if the expected group (by role) is empty (no groups found)
+        if (groups.isEmpty()) {
+            missingGroupDetails.add(projectRoleIdentifier)
+        } else {
+            dynamicExpectedGroups[projectRoleIdentifier] = groupNames
+        }
+    }
+}
+
+if (!missingGroupDetails.isEmpty()) {
+    log.warn("Projects and roles with missing groups: ${missingGroupDetails.join(', ')}")
 } else {
-    log.warn("All projects have the necessary groups assigned to roles.")
+    log.warn("All specified roles in all projects have associated groups.")
 }
