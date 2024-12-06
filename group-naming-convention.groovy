@@ -9,7 +9,7 @@ def projectRoleManager = ComponentAccessor.getComponent(ProjectRoleManager)
 def groupManager = ComponentAccessor.getGroupManager()
 def projects = projectManager.getProjects()
 
-def namingConventionIssues = []
+def issues = []
 
 projects.each { project ->
     def projectRoles = projectRoleManager.getProjectRoles(project)
@@ -19,16 +19,17 @@ projects.each { project ->
         def groupNames = groups.collect { it.getGroup().getName() }
         def expectedGroupName = "${project.getKey()}_${role.getName()}"
 
-        if (!groupNames.any { it.equalsIgnoreCase(expectedGroupName) }) {
-            namingConventionIssues.add("Project: ${project.getName()}, Role: ${role.getName()}, Expected Group: ${expectedGroupName}")
+        // Check if no group or group name does not match exactly
+        if (groupNames.isEmpty() || !groupNames.contains(expectedGroupName)) {
+            issues.add("Project: ${project.getName()}, Role: ${role.getName()}, Expected Group: ${expectedGroupName}, Actual Groups: ${groupNames.join(', ')}")
         }
     }
 }
 
-if (!namingConventionIssues.isEmpty()) {
-    namingConventionIssues.each { issue ->
+if (!issues.isEmpty()) {
+    issues.each { issue ->
         log.warn(issue)
     }
 } else {
-    log.info("All roles have correct group mappings and naming conventions.")
+    log.info("All roles have correct group mappings and naming conventions or are correctly ungrouped.")
 }
