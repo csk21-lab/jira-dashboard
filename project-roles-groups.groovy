@@ -2,43 +2,50 @@ import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.project.ProjectManager
 import com.atlassian.jira.security.roles.ProjectRoleManager
 import com.atlassian.jira.security.roles.ProjectRoleActor
+import com.atlassian.jira.security.groups.GroupManager
 
 def projectManager = ComponentAccessor.getProjectManager()
 def projectRoleManager = ComponentAccessor.getComponent(ProjectRoleManager)
+def groupManager = ComponentAccessor.getGroupManager()
 def projects = projectManager.getProjects()
 
-// Initialize a map to store dynamic expected groups
-def dynamicExpectedGroups = [:]
-
-projects.each { project ->
-    def projectRoles = projectRoleManager.getProjectRoles(project)
-    projectRoles.each { role ->
-        // Assuming every role should have at least one group, populate expected groups
-        dynamicExpectedGroups["${project.getName()}_${role.getName()}"] = []
-    }
-}
-
-// Check each project and role for group associations
+def requiredRoles = ["admin", "team"]
+def groupsOfRoles = [:]
 def missingGroupDetails = []
 
 projects.each { project ->
-    def projectRoles = projectRoleManager.getProjectRoles(project)
-    projectRoles.each { role ->
-        def projectRoleIdentifier = "${project.getName()}_${role.getName()}"
+    requiredRoles.each { role ->
+        groupsOfRoles[project.getKey() + "_" + role] = []
+    }
+
+    project.getProjectRoles().each { role ->
+        def projectRoleIdentifier = "${project.getKey()}_${role.getName()}"
         def groups = projectRoleManager.getProjectRoleActors(role, project).getRoleActorsByType(ProjectRoleActor.GROUP_ROLE_ACTOR_TYPE)
         def groupNames = groups.collect { it.getGroup().getName() }
 
-        // Check if the expected group (by role) is empty (no groups found)
-        if (groups.isEmpty()) {
+        if (groupNames.isEmpty()) {
             missingGroupDetails.add(projectRoleIdentifier)
         } else {
-            dynamicExpectedGroups[projectRoleIdentifier] = groupNames
+            groupNames.each { groupName ->
+                if (groupName != projectRoleIdentifier) {
+                    missingGroupDetails.add(projectRoleIdentifier)
+                }
+            }
         }
     }
 }
 
 if (!missingGroupDetails.isEmpty()) {
-    log.warn("Projects and roles with missing groups: ${missingGroupDetails.join(', ')}")
+    missingGroupDetails.each { groupMissing ->
+        log.warn("${groupMissing} is missing the correct group mapping.")
+    }
+}
+
+def jiraGroups = groupManager.getAllGroups().collect { it.getName() }
+def groupsExistInJira = missingGroupDetails.findAll { jiraGroups.contains(it) }
+
+if (!groupsExistInJira.isEmpty()) {
+    log.warn("Groups existing in JIRA that are missing correct mappings: ${groupsExistInJira.join(', ')}")
 } else {
-    log.warn("All specified roles in all projects have associated groups.")
+    log.warn("No common groups in JIRA")
 }
