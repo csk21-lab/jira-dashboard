@@ -1,23 +1,31 @@
-projects.each { project ->
-    project.getProjectRoles().each { role ->
-        def normalizedRoleName = role.getName().replace(" ", "-")
-        def expectedGroupName = "${project.getKey()}_${normalizedRoleName}"
-        def expectedGroupNamePlural = "${expectedGroupName}s"  // Handle plural form
-        def groups = projectRoleManager.getProjectRoleActors(role, project).getRoleActorsByType(ProjectRoleActor.GROUP_ROLE_ACTOR_TYPE)
-        def groupNames = groups.collect { it.getGroup().getName() }
+import com.atlassian.jira.component.ComponentAccessor
 
-        // Check both singular and plural forms
-        if (!groupNames.contains(expectedGroupName) && !groupNames.contains(expectedGroupNamePlural)) {
-            missingGroupDetails.add("Project: ${project.getName()}, Role: ${role.getName()}, Expected Group: ${expectedGroupName} or ${expectedGroupNamePlural}")
-        }
-    }
+// Get the ProjectRoleManager
+def projectRoleManager = ComponentAccessor.getProjectRoleManager()
+def projectManager = ComponentAccessor.getProjectManager()
+
+// Specify the project key and role name you're interested in
+String projectKey = "PROJKEY" // Change to your project's key
+String roleName = "Developers" // Change to the specific role name
+
+// Find the project by its key
+def project = projectManager.getProjectObjByKey(projectKey)
+if (project == null) {
+    log.warn("Project not found: $projectKey")
+    return
 }
 
-// Log output
-if (!missingGroupDetails.isEmpty()) {
-    missingGroupDetails.each { issue ->
-        log.warn(issue)
-    }
+// Get the role by name
+def projectRole = projectRoleManager.getProjectRole(roleName)
+if (projectRole == null) {
+    log.warn("Project role not found: $roleName")
+    return
+}
+
+// Get the users in the specified role for the project
+def roleActors = projectRoleManager.getProjectRoleActors(projectRole, project).getUsers()
+if (!roleActors.isEmpty()) {
+    println "Project: ${project.getName()}, Role: ${roleName}, Users: ${roleActors*.displayName.join(', ')}"
 } else {
-    log.info("All roles are correctly mapped to groups as per naming convention.")
+    println "Project: ${project.getName()} has no users in the role: ${roleName}"
 }
