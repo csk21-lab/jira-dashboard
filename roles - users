@@ -1,0 +1,23 @@
+projects.each { project ->
+    project.getProjectRoles().each { role ->
+        def normalizedRoleName = role.getName().replace(" ", "-")
+        def expectedGroupName = "${project.getKey()}_${normalizedRoleName}"
+        def expectedGroupNamePlural = "${expectedGroupName}s"  // Handle plural form
+        def groups = projectRoleManager.getProjectRoleActors(role, project).getRoleActorsByType(ProjectRoleActor.GROUP_ROLE_ACTOR_TYPE)
+        def groupNames = groups.collect { it.getGroup().getName() }
+
+        // Check both singular and plural forms
+        if (!groupNames.contains(expectedGroupName) && !groupNames.contains(expectedGroupNamePlural)) {
+            missingGroupDetails.add("Project: ${project.getName()}, Role: ${role.getName()}, Expected Group: ${expectedGroupName} or ${expectedGroupNamePlural}")
+        }
+    }
+}
+
+// Log output
+if (!missingGroupDetails.isEmpty()) {
+    missingGroupDetails.each { issue ->
+        log.warn(issue)
+    }
+} else {
+    log.info("All roles are correctly mapped to groups as per naming convention.")
+}
