@@ -19,9 +19,12 @@ def severityOrder = ["Critical", "High", "Medium", "Low"]
 def getHighestSeverity(assetObjects) {
     def highestSeverity = "Low" // Default to the lowest severity
     assetObjects.each { asset ->
-        def attribute = asset.getObjectAttributeBean("Severity")
-        if (attribute) {
-            def severity = attribute.getObjectAttributeValueBeans()?.first()?.getValue()
+        // Get all attribute beans
+        def attributes = asset.getObjectAttributeBeans()
+        // Find the 'Severity' attribute
+        def severityAttribute = attributes.find { it.getObjectTypeAttributeBean().getName() == "Severity" }
+        if (severityAttribute) {
+            def severity = severityAttribute.getObjectAttributeValueBeans()?.first()?.getValue()
             if (severity && severityOrder.indexOf(severity) < severityOrder.indexOf(highestSeverity)) {
                 highestSeverity = severity
             }
