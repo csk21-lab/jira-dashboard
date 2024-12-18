@@ -1,11 +1,9 @@
 import com.atlassian.jira.component.ComponentAccessor
-import com.atlassian.jira.issue.Issue
 import com.atlassian.jira.issue.CustomFieldManager
-import com.atlassian.jira.issue.fields.CustomField
+import com.atlassian.jira.issue.Issue
 import com.atlassian.jira.issue.ModifiedValue
 import com.atlassian.jira.issue.util.DefaultIssueChangeHolder
 import com.riadalabs.jira.plugins.insight.services.model.ObjectAttribute
-import com.riadalabs.jira.plugins.insight.services.model.ObjectTypeAttributeBean
 import com.riadalabs.jira.plugins.insight.services.model.InsightObject
 
 // Get the necessary managers
@@ -19,10 +17,8 @@ def severityOrder = ["Critical", "High", "Medium", "Low"]
 def getHighestSeverity(assetObjects) {
     def highestSeverity = "Low" // Default to the lowest severity
     assetObjects.each { asset ->
-        // Get all attribute beans
-        def attributes = asset.getObjectAttributeBeans()
-        // Find the 'Severity' attribute
-        def severityAttribute = attributes.find { it.getObjectTypeAttributeBean().getName() == "Severity" }
+        // Get the 'Severity' attribute
+        def severityAttribute = asset.getObjectAttribute("Severity")
         if (severityAttribute) {
             def severity = severityAttribute.getObjectAttributeValueBeans()?.first()?.getValue()
             if (severity && severityOrder.indexOf(severity) < severityOrder.indexOf(highestSeverity)) {
@@ -44,14 +40,18 @@ if (assetField && severityField) {
     // Get the asset objects from the "V asset" field
     def assetObjects = issue.getCustomFieldValue(assetField)
 
-    // Get the highest severity value from the asset objects
-    def highestSeverity = getHighestSeverity(assetObjects)
+    if (assetObjects) {
+        // Get the highest severity value from the asset objects
+        def highestSeverity = getHighestSeverity(assetObjects)
 
-    // Set the "Severity" custom field value based on the highest severity found
-    def changeHolder = new DefaultIssueChangeHolder()
-    severityField.updateValue(null, issue, new ModifiedValue(issue.getCustomFieldValue(severityField), highestSeverity), changeHolder)
-    
-    log.info("Severity field updated to ${highestSeverity} for issue ${issue.key}")
+        // Set the "Severity" custom field value based on the highest severity found
+        def changeHolder = new DefaultIssueChangeHolder()
+        severityField.updateValue(null, issue, new ModifiedValue(issue.getCustomFieldValue(severityField), highestSeverity), changeHolder)
+
+        log.info("Severity field updated to ${highestSeverity} for issue ${issue.key}")
+    } else {
+        log.warn("No asset objects found in 'V asset' field for issue ${issue.key}")
+    }
 } else {
     log.error("Custom fields 'V asset' or 'Severity' not found")
 }
