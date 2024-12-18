@@ -4,6 +4,9 @@ import com.atlassian.jira.issue.CustomFieldManager
 import com.atlassian.jira.issue.fields.CustomField
 import com.atlassian.jira.issue.ModifiedValue
 import com.atlassian.jira.issue.util.DefaultIssueChangeHolder
+import com.riadalabs.jira.plugins.insight.services.model.ObjectAttribute
+import com.riadalabs.jira.plugins.insight.services.model.ObjectTypeAttributeBean
+import com.riadalabs.jira.plugins.insight.services.model.InsightObject
 
 // Get the necessary managers
 def customFieldManager = ComponentAccessor.getCustomFieldManager()
@@ -16,9 +19,12 @@ def severityOrder = ["Critical", "High", "Medium", "Low"]
 def getHighestSeverity(assetObjects) {
     def highestSeverity = "Low" // Default to the lowest severity
     assetObjects.each { asset ->
-        def severity = asset.get("severity")
-        if (severity && severityOrder.indexOf(severity) < severityOrder.indexOf(highestSeverity)) {
-            highestSeverity = severity
+        def attribute = asset.getObjectAttributeBean("Severity")
+        if (attribute) {
+            def severity = attribute.getObjectAttributeValueBeans()?.first()?.getValue()
+            if (severity && severityOrder.indexOf(severity) < severityOrder.indexOf(highestSeverity)) {
+                highestSeverity = severity
+            }
         }
     }
     return highestSeverity
