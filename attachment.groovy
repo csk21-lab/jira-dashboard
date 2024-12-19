@@ -5,7 +5,8 @@ import com.atlassian.jira.issue.fields.CustomFieldManager
 import com.atlassian.jira.issue.search.SearchProvider
 import com.atlassian.jira.issue.search.SearchRequest
 import com.atlassian.jira.issue.search.SearchResults
-import com.atlassian.jira.util.csv.CsvWriter
+import com.atlassian.jira.issue.util.IssueFieldConstants
+import com.atlassian.jira.web.bean.PagerFilter
 import com.atlassian.query.Query
 import com.atlassian.query.QueryImpl
 import com.atlassian.query.operator.Operator
@@ -13,9 +14,9 @@ import com.atlassian.query.clause.TerminalClauseImpl
 import com.atlassian.query.operand.SingleValueOperand
 
 import java.io.ByteArrayOutputStream
-import java.io.IOException
+import java.io.PrintWriter
 
-// Define the custom field ID or name
+// Define the custom field name
 def customFieldName = "Asset Custom Field"
 
 // Get custom field manager, issue manager, and search provider
@@ -44,24 +45,20 @@ def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 for (Issue issue : searchResults.getIssues()) {
     def assetObjects = issue.getCustomFieldValue(customField)
     if (assetObjects) {
-        // Create a CSV writer
+        // Create a ByteArrayOutputStream to hold the CSV data
         ByteArrayOutputStream baos = new ByteArrayOutputStream()
-        CsvWriter csvWriter = new CsvWriter(baos, ',')
+        PrintWriter writer = new PrintWriter(baos)
 
         // Write CSV headers
-        csvWriter.writeField("Issue Key")
-        csvWriter.writeField("Asset Object")
-        csvWriter.endRecord()
+        writer.println("Issue Key,Asset Object")
 
         // Write CSV data
         for (def assetObject : assetObjects) {
-            csvWriter.writeField(issue.getKey())
-            csvWriter.writeField(assetObject.toString())
-            csvWriter.endRecord()
+            writer.println("${issue.getKey()},${assetObject.toString()}")
         }
 
-        // Close the CSV writer
-        csvWriter.close()
+        // Close the writer
+        writer.close()
 
         // Create an attachment file
         def fileName = "${issue.key}_asset_export.csv"
