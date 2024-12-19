@@ -1,7 +1,8 @@
 import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.issue.Issue
+import com.atlassian.jira.issue.fields.CustomField
+import com.atlassian.jira.issue.fields.CustomFieldManager
 import com.atlassian.jira.issue.search.SearchProvider
-import com.atlassian.jira.issue.search.SearchResults
 import com.atlassian.jira.web.bean.PagerFilter
 import com.atlassian.query.Query
 import com.atlassian.query.QueryImpl
@@ -13,13 +14,15 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 
-// Define the custom field name
+// Define the custom field name and issue key
 def customFieldName = "Asset Custom Field"
+def issueKey = "PROJECT-123"  // Replace with your specific issue key
 
-// Get custom field manager, issue manager, and search provider
+// Get custom field manager and issue manager
 def customFieldManager = ComponentAccessor.getCustomFieldManager()
 def issueManager = ComponentAccessor.getIssueManager()
-def searchProvider = ComponentAccessor.getComponent(SearchProvider)
+def attachmentManager = ComponentAccessor.getAttachmentManager()
+def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 
 // Get the custom field object
 def customField = customFieldManager.getCustomFieldObjectByName(customFieldName)
@@ -27,43 +30,38 @@ if (!customField) {
     throw new IllegalArgumentException("Custom field with name '${customFieldName}' not found")
 }
 
-// Create a query to search for issues with the custom field populated
-Query query = new QueryImpl(new TerminalClauseImpl(customField.getIdAsLong().toString(), Operator.IS_NOT, new SingleValueOperand("")))
-def searchRequest = new com.atlassian.jira.issue.search.SearchRequest(query)
-
-// Perform the search
-SearchResults searchResults = searchProvider.search(searchRequest, ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser(), PagerFilter.getUnlimitedFilter())
-
-// Create an attachment manager
-def attachmentManager = ComponentAccessor.getAttachmentManager()
-def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
-
-// Iterate through each issue and create a CSV file with the asset objects
-for (Issue issue : searchResults.getIssues()) {
-    def assetObjects = issue.getCustomFieldValue(customField)
-    if (assetObjects) {
-        // Create a ByteArrayOutputStream to hold the CSV data
-        ByteArrayOutputStream baos = new ByteArrayOutputStream()
-        PrintWriter writer = new PrintWriter(baos)
-
-        // Write CSV headers
-        writer.println("Issue Key,Asset Object")
-
-        // Write CSV data
-        for (def assetObject : assetObjects) {
-            writer.println("${issue.getKey()},${assetObject.toString()}")
-        }
-
-        // Close the writer
-        writer.close()
-
-        // Create an attachment file
-        def fileName = "${issue.key}_asset_export.csv"
-        def fileData = baos.toByteArray()
-
-        // Attach the file to the specified issue
-        attachmentManager.createAttachment(new ByteArrayInputStream(fileData), fileName, "text/csv", user, issue)
-    }
+// Get the issue
+def issue = issueManager.getIssueByCurrentKey(issueKey)
+if (!issue) {
+    throw new IllegalArgumentException("Issue with key '${issueKey}' not found")
 }
 
-return "Asset objects exported and attached to each issue."
+// Get the asset objects from the custom field
+def assetObjects = issue.getCustomFieldValue(customField)
+if (!assetObjects) {
+    throw new IllegalArgumentException("No asset objects found in the custom field for issue '${issueKey}'")
+}
+
+// Create a ByteArrayOutputStream to hold the CSV data
+ByteArrayOutputStream baos = new ByteArrayOutputStream()
+PrintWriter writer = new PrintWriter(baos)
+
+// Write CSV headers
+writer.println("Issue Key,Asset Object")
+
+// Write CSV data
+for (def assetObject : assetObjects) {
+    writer.println("${issue.getKey()},${assetObject.toString()}")
+}
+
+// Close the writer
+writer.close()
+
+// Create an attachment file
+def fileName = "${issue.key}_asset_export.csv"
+def fileData = baos.toByteArray()
+
+// Attach the file to the issue
+attachmentManager.createAttachment(new ByteArrayInputStream(fileData), fileName, "text/csv", user, issue)
+
+return "Asset objects exported and attached to issue ${issueKey}."
