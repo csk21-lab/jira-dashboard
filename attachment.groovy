@@ -5,14 +5,14 @@ import com.atlassian.jira.issue.fields.CustomFieldManager
 import com.atlassian.jira.issue.search.SearchProvider
 import com.atlassian.jira.issue.search.SearchRequest
 import com.atlassian.jira.issue.search.SearchResults
-import com.atlassian.jira.issue.util.IssueFieldConstants
 import com.atlassian.jira.web.bean.PagerFilter
 import com.atlassian.query.Query
 import com.atlassian.query.QueryImpl
-import com.atlassian.query.operator.Operator
 import com.atlassian.query.clause.TerminalClauseImpl
 import com.atlassian.query.operand.SingleValueOperand
+import com.atlassian.query.operator.Operator
 
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 
