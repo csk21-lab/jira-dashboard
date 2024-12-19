@@ -2,6 +2,7 @@ import com.atlassian.jira.bc.issue.search.SearchService
 import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.config.util.JiraHome
 import com.atlassian.jira.issue.Issue
+import com.atlassian.jira.issue.attachment.CreateAttachmentParamsBean
 import com.atlassian.jira.issue.fields.CustomField
 import com.atlassian.jira.issue.fields.CustomFieldManager
 import com.atlassian.jira.web.bean.PagerFilter
@@ -12,7 +13,7 @@ import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 
 def today = new DateTime()
-def reportPath = ComponentAccessor.getComponentOfType(JiraHome).getHome().toString() + "/export/slaexports/"
+def reportPath = ComponentAccessor.getComponent(JiraHome).getHome().toString() + "/export/slaexports/"
 def reportFilename = "asset_export_" + today.toString('MM-dd-yyyy-HHmm') + ".csv"
 def reportFilePath = reportPath + reportFilename
 def reportDirectory = new File(reportPath)
@@ -76,9 +77,17 @@ writer.close()
 def fileName = "${issue.key}_asset_export.csv"
 def fileData = baos.toByteArray()
 
-// Attach the file to the issue
+// Attach the file to the issue using CreateAttachmentParamsBean
 try {
-    attachmentManager.createAttachment(new ByteArrayInputStream(fileData), fileName, "text/csv", user, issue)
+    def attachmentParams = new CreateAttachmentParamsBean.Builder(
+        new ByteArrayInputStream(fileData),
+        fileName,
+        "text/csv",
+        user,
+        issue
+    ).build()
+
+    attachmentManager.createAttachment(attachmentParams)
     return "Asset objects exported and attached to issue ${issueKey} successfully."
 } catch (Exception e) {
     log.error("Failed to attach file to issue: ${issueKey}", e)
