@@ -1,9 +1,6 @@
 import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.issue.Issue
-import com.atlassian.jira.issue.fields.CustomField
-import com.atlassian.jira.issue.fields.CustomFieldManager
 import com.atlassian.jira.issue.search.SearchProvider
-import com.atlassian.jira.issue.search.SearchRequest
 import com.atlassian.jira.issue.search.SearchResults
 import com.atlassian.jira.web.bean.PagerFilter
 import com.atlassian.query.Query
@@ -20,19 +17,19 @@ import java.io.PrintWriter
 def customFieldName = "Asset Custom Field"
 
 // Get custom field manager, issue manager, and search provider
-CustomFieldManager customFieldManager = ComponentAccessor.getCustomFieldManager()
+def customFieldManager = ComponentAccessor.getCustomFieldManager()
 def issueManager = ComponentAccessor.getIssueManager()
 def searchProvider = ComponentAccessor.getComponent(SearchProvider)
 
 // Get the custom field object
-CustomField customField = customFieldManager.getCustomFieldObjectByName(customFieldName)
+def customField = customFieldManager.getCustomFieldObjectByName(customFieldName)
 if (!customField) {
     throw new IllegalArgumentException("Custom field with name '${customFieldName}' not found")
 }
 
 // Create a query to search for issues with the custom field populated
 Query query = new QueryImpl(new TerminalClauseImpl(customField.getIdAsLong().toString(), Operator.IS_NOT, new SingleValueOperand("")))
-SearchRequest searchRequest = new SearchRequest(query)
+def searchRequest = new com.atlassian.jira.issue.search.SearchRequest(query)
 
 // Perform the search
 SearchResults searchResults = searchProvider.search(searchRequest, ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser(), PagerFilter.getUnlimitedFilter())
