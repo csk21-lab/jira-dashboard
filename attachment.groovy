@@ -88,6 +88,7 @@ try {
     ).build()
 
     attachmentManager.createAttachment(attachmentParams)
+    log.info("Asset objects exported and attached to issue ${issueKey} successfully.")
     return "Asset objects exported and attached to issue ${issueKey} successfully."
 } catch (Exception e) {
     log.error("Failed to attach file to issue: ${issueKey}", e)
