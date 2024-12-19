@@ -62,6 +62,10 @@ def fileName = "${issue.key}_asset_export.csv"
 def fileData = baos.toByteArray()
 
 // Attach the file to the issue
-attachmentManager.createAttachment(new ByteArrayInputStream(fileData), fileName, "text/csv", user, issue)
-
-return "Asset objects exported and attached to issue ${issueKey}."
+try {
+    attachmentManager.createAttachment(new ByteArrayInputStream(fileData), fileName, "text/csv", user, issue)
+    return "Asset objects exported and attached to issue ${issueKey}."
+} catch (Exception e) {
+    log.error("Failed to attach file to issue: ${issueKey}", e)
+    return "Failed to attach file to issue ${issueKey}: ${e.message}"
+}
