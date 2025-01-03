@@ -45,3 +45,12 @@ if (!issues.isEmpty()) {
 } else {
     log.info("All roles have correct group mappings and naming conventions or are correctly ungrouped.")
 }
+
+def jiraGroups = groupManager.getAllGroups().collect { it.getName() }
+def groupsExistInJira = issues.findAll { jiraGroups.contains(it) }
+
+if (!groupsExistInJira.isEmpty()) {
+    log.warn("Groups existing in JIRA that are missing correct mappings: ${groupsExistInJira.join(', ')}")
+} else {
+    log.warn("No common groups in JIRA")
+}
