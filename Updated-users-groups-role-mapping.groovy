@@ -78,6 +78,15 @@ projectKeys.each { projectKey ->
                     log.warn("Users in Invalid Group (${groupName}): ${invalidGroupUserList.join(', ')}")
                 }
             }
+
+            // Compare direct users to users in valid group
+            directUserNames.each { userName ->
+                if (usersList.contains(userName)) {
+                    log.warn("Direct userName Matching with Group User: ${userName}")
+                } else {
+                    log.warn("Direct userName MIS-Match with Group User: ${userName}")
+                }
+            }
         }
     }
 }
