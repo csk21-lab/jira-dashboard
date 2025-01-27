@@ -2,3 +2,6 @@
 
 
 =TEXTJOIN(", ", TRUE, IF(ISNUMBER(SEARCH(TRIM(MID(SUBSTITUTE(A1, ",", REPT(" ", 100)), (ROW(INDIRECT("1:" & LEN(A1) - LEN(SUBSTITUTE(A1, ",", "")) + 1)) - 1) * 100 + 1, 100))), B1)), "", TRIM(MID(SUBSTITUTE(A1, ",", REPT(" ", 100)), (ROW(INDIRECT("1:" & LEN(A1) - LEN(SUBSTITUTE(A1, ",", "")) + 1)) - 1) * 100 + 1, 100))))
+
+
+=TEXTJOIN(", ", TRUE, FILTERXML("<t><s>" & SUBSTITUTE(B1, ",", "</s><s>") & "</s></t>", "//s[not(. = //s/text()[contains(., '" & SUBSTITUTE(A1, ",", "')] or contains(., '") & "')])]"))
