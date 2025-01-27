@@ -1,1 +1,4 @@
 =TEXTJOIN(", ", TRUE, IF(ISNUMBER(SEARCH("," & TRIM(MID(SUBSTITUTE(A1, ",", REPT(" ", 999)), (ROW(INDIRECT("1:" & LEN(A1) - LEN(SUBSTITUTE(A1, ",", "")) + 1)) - 1) * 999 + 1, 999)) & ",", "," & A2 & ",")), "", TRIM(MID(SUBSTITUTE(A1, ",", REPT(" ", 999)), (ROW(INDIRECT("1:" & LEN(A1) - LEN(SUBSTITUTE(A1, ",", "")) + 1)) - 1) * 999 + 1, 999))))
+
+
+=TEXTJOIN(", ", TRUE, IF(ISNUMBER(SEARCH(TRIM(MID(SUBSTITUTE(A1, ",", REPT(" ", 100)), (ROW(INDIRECT("1:" & LEN(A1) - LEN(SUBSTITUTE(A1, ",", "")) + 1)) - 1) * 100 + 1, 100))), B1)), "", TRIM(MID(SUBSTITUTE(A1, ",", REPT(" ", 100)), (ROW(INDIRECT("1:" & LEN(A1) - LEN(SUBSTITUTE(A1, ",", "")) + 1)) - 1) * 100 + 1, 100))))
