@@ -1,3 +1,5 @@
+//ssh your_windows_username@windows_machine_ip "powershell -Command 'Get-ComputerInfo'"
+
 @Grab(group='com.jcraft', module='jsch', version='0.1.55')
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
