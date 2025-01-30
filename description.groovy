@@ -1,3 +1,26 @@
+import com.atlassian.jira.bc.issue.IssueService;
+import com.atlassian.jira.bc.issue.IssueService.UpdateValidationResult;
+import com.atlassian.jira.bc.issue.IssueService.IssueResult;
+import com.atlassian.jira.component.ComponentAccessor;
+import com.atlassian.jira.issue.IssueInputParameters;
+import com.atlassian.jira.user.ApplicationUser;
+
+public class UpdateIssueDescription {
+    public void updateIssueDescription(ApplicationUser user, Long issueId) {
+        IssueService issueService = ComponentAccessor.getIssueService();
+        IssueInputParameters issueInputParameters = issueService.newIssueInputParameters(); 
+        issueInputParameters.setDescription("I am a new description"); 
+        UpdateValidationResult updateValidationResult = issueService.validateUpdate(user, issueId, issueInputParameters); 
+        if (updateValidationResult.isValid()) { 
+            IssueResult updateResult = issueService.update(user, updateValidationResult); 
+            if (!updateResult.isValid()) { 
+                // Do something 
+            } 
+        }
+    }
+}
+
+
 import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.issue.Issue
 import com.atlassian.jira.issue.customfields.manager.CustomFieldManager
