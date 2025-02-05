@@ -1,7 +1,5 @@
-@Grab(group='com.jcraft', module='jsch', version='0.1.55') // Updated version
+@Grab(group='com.jcraft', module='jsch', version='0.1.55') // Ensure you're using the latest version
 
-import com.atlassian.jira.issue.Issue
-import com.atlassian.jira.component.ComponentAccessor
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import com.jcraft.jsch.ChannelExec
@@ -15,16 +13,15 @@ try {
     // Set up the configuration properties for the SSH session
     def config = new Properties()
     config.put("StrictHostKeyChecking", "no")
-    config.put("PreferredAuthentications", "publickey,keyboard-interactive,password")
     
     JSch jsch = new JSch()
     Session session = jsch.getSession(username, server, 22)
     session.setPassword(password)
-    session.setConfig(config)  // Use our custom config
+    session.setConfig(config)  // Use the custom config
 
-    println("Connecting to server: ${server} with username: ${username}")
+    println("Attempting to connect to server: ${server} with username: ${username}")
     session.connect()
-    println("Connected successfully")
+    println("Connection established successfully")
 
     ChannelExec channel = (ChannelExec) session.openChannel("exec")
     channel.setCommand(cmd)
@@ -33,9 +30,10 @@ try {
     StringBuilder errorBuffer = new StringBuilder()
 
     InputStream inputStream = channel.getInputStream()
-    InputStream err = channel.getExtInputStream()
+    InputStream errStream = channel.getErrStream()
 
     channel.connect()
+    println("Channel connected, executing command...")
 
     byte[] tmp = new byte[1024]
     while (true) {
@@ -45,25 +43,33 @@ try {
             outputBuffer.append(new String(tmp, 0, i))
         }
 
+        while (errStream.available() > 0) {
+            int i = errStream.read(tmp, 0, 1024)
+            if (i < 0) break
+            errorBuffer.append(new String(tmp, 0, i))
+        }
+
         if (channel.isClosed()) {
-            if ((inputStream.available() > 0) || (err.available() > 0)) continue
+            if ((inputStream.available() > 0) || (errStream.available() > 0)) continue
             println("exit-status: " + channel.getExitStatus())
             break
         }
 
         try {
             Thread.sleep(1000)
-        } catch (Exception ee) {
+        } catch (Exception e) {
             // Ignore interruptions during sleep
         }
     }
 
-    println("output: " + outputBuffer.toString())
-    println("error: " + errorBuffer.toString())
+    println("Command output: " + outputBuffer.toString())
+    println("Command error: " + errorBuffer.toString())
 
     channel.disconnect()
     session.disconnect()
+    println("Session disconnected successfully")
 
 } catch (Exception e) {
     e.printStackTrace()
+    println("An error occurred: " + e.message)
 }
