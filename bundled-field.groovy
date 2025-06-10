@@ -6,13 +6,10 @@ import org.apache.log4j.Level
 def log = Logger.getLogger("com.onresolve.scriptrunner.runner.ScriptRunnerImpl")
 log.setLevel(Level.DEBUG)
 
-// Key of issue where the bundledfields value is
+// Configurable section
 String issueKey = 'WORK-27'
-// ID of bundledfield where we are looking for value
 String bundledFieldId = "customfield_10300"
-// Field column in bundledfield
 String fieldName = "select field"
-// Row in bundledfield
 Integer row = 0
 
 def issueManager = ComponentAccessor.getIssueManager()
@@ -24,13 +21,22 @@ String cfValue = issue.getCustomFieldValue(cfBundledFields)
 Object jsonValue = new JsonSlurper().parseText(cfValue)
 
 // Retrieve a value of requested row and field name
-List fields = getFieldsForRow(row, (Map) jsonValue)
+List fields = getFieldsForRow(row, jsonValue)
+if (!fields) {
+    log.warn("No fields found for row $row")
+    return null
+}
 Map field = getFieldByName(fieldName, fields)
+if (!field) {
+    log.warn("No field named '$fieldName' found in row $row")
+    return null
+}
 def value = getFieldValue(field)
-log.info("my subField ${fieldName} value is ${value}")
-value
+log.info("my subField '${fieldName}' value is '${value}'")
+return value
 
 def String getFieldValue(Map field) {
+    if (!field) return null
     def type = field.type
     if (type == 'select' || type == 'checkbox') {
         return getOptionValue(field)
@@ -39,25 +45,34 @@ def String getFieldValue(Map field) {
 }
 
 def String getOptionValue(Map field) {
-    List<Map> allOptions = (List<Map>) field.options
-    String val = field.value
-    String[] selectedIds = val.split(',')
-    List<Map> selectedOptions = allOptions.findAll { it.id in selectedIds }
-    return selectedOptions.name.join(', ')
+    List<Map> allOptions = (field.options instanceof List) ? (List<Map>) field.options : []
+    String val = field.value ?: ""
+    String[] selectedIds = val.split(',').collect { it.trim() }
+    List<Map> selectedOptions = allOptions.findAll { opt -> selectedIds.contains(opt.id) }
+    return selectedOptions.collect { it.name }.join(', ')
 }
 
-def Map getFieldByName(fieldName, List<Map> fields) {
+def Map getFieldByName(String fieldName, List<Map> fields) {
+    if (!fields) return null
     return fields.find { it.name == fieldName }
 }
 
-def List getFieldsForRow(row, Map json) {
-    List fields = null
-    int i = 0
-    json.each { k, v ->
-        if (i == row) {
-            fields = ((Map) v).get("fields")
+def List getFieldsForRow(Integer row, Object json) {
+    if (!json) return null
+    // Handle both List and Map structures for bundled fields
+    if (json instanceof List) {
+        if (row < json.size() && json[row] instanceof Map && json[row].containsKey("fields")) {
+            return json[row].fields
         }
-        i++
+    } else if (json instanceof Map) {
+        int i = 0
+        for (entry in json) {
+            def v = entry.value
+            if (i == row && v instanceof Map && v.containsKey("fields")) {
+                return v.fields
+            }
+            i++
+        }
     }
-    return fields
+    return null
 }
