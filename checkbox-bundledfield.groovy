@@ -1,44 +1,93 @@
-import com.deviniti.plugins.bundledfields.api.issue.BundledField
-import com.deviniti.plugins.bundledfields.api.issue.Subfield
-import com.deviniti.plugins.bundledfields.api.issue.CheckboxField
-import com.deviniti.plugins.bundledfields.api.issue.SelectField
-import com.deviniti.plugins.bundledfields.api.issue.Option
-import com.intenso.jira.plugin.customfield.bundledfields.api.issue.BundledFieldDFService
-import com.onresolve.scriptrunner.runner.customisers.PluginModule
-import com.onresolve.scriptrunner.runner.customisers.WithPlugin
+import com.atlassian.jira.component.ComponentAccessor
+import groovy.json.JsonSlurper
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
+def log = Logger.getLogger("com.onresolve.scriptrunner.runner.ScriptRunnerImpl")
 log.setLevel(Level.DEBUG)
 
-String ISSUE_OR_KEY = "DFT-67";
-String DF_BF_CUSTOM_FIELD_ID = "customfield_15500";
-int FIRST_GROUP = 0;
+// Configurable section
+String issueKey = 'WORK-27'
+String bundledFieldId = "customfield_10300"
+String fieldName = "checkbox field" // <-- Change this to your checkbox field name
+Integer row = 0
 
-@WithPlugin("com.intenso.jira.plugin.dynamic-forms")
-@PluginModule
-BundledFieldDFService bundledFieldDFService
+def issueManager = ComponentAccessor.getIssueManager()
+def customFieldManager = ComponentAccessor.getCustomFieldManager()
+def cfBundledFields = customFieldManager.getCustomFieldObject(bundledFieldId)
+def issue = issueManager.getIssueObject(issueKey)
 
-BundledField df_bf = bundledFieldDFService.getBundledField(ISSUE_OR_KEY, DF_BF_CUSTOM_FIELD_ID);
+String cfValue = issue.getCustomFieldValue(cfBundledFields)
+Object jsonValue = new JsonSlurper().parseText(cfValue)
 
-String selectFieldName = "Select Field 1";
-def selectField1 = df_bf.getSubfield(selectFieldName, FIRST_GROUP)
-if (selectField1 instanceof SelectField) {
-    Option selectedOption = selectField1.getSelectedOption()
-    log.debug("Value of \""+selectFieldName+"\" in group " + FIRST_GROUP + ":")
-    log.debug("Id: " + selectedOption.getId())
-  	log.debug("Name: " + selectedOption.getName())
+List fields = getFieldsForRow(row, jsonValue)
+if (!fields) {
+    log.warn("No fields found for row $row")
+    return null
+}
+Map field = getFieldByName(fieldName, fields)
+if (!field) {
+    log.warn("No field named '$fieldName' found in row $row")
+    return null
+}
+def value = getFieldValue(field)
+log.info("Checkbox field '${fieldName}' value is '${value}'")
+return value
+
+// --- Helper Methods ---
+
+def String getFieldValue(Map field) {
+    if (!field) return null
+    def type = field.type
+    if (type == 'checkbox') {
+        return getCheckboxValues(field)
+    } else if (type == 'select') {
+        return getOptionValue(field)
+    }
+    return field.value
 }
 
-log.debug("---------")
+def String getCheckboxValues(Map field) {
+    // field.value: comma-separated option IDs, e.g. "10100,10101"
+    // field.options: list of option maps, each with id and name
+    if (!field.value) return ""
+    List<Map> allOptions = field.options instanceof List ? field.options : []
+    List<String> selectedIds = field.value.split(',').collect { it.trim() }
+    List<String> selectedNames = allOptions.findAll { opt -> selectedIds.contains(opt.id) }
+                                        .collect { it.name }
+    return selectedNames.join(', ')
+}
 
-String checkboxFieldName = "Checkbox Field 1";
-def checkboxField1 = df_bf.getSubfield(checkboxFieldName, FIRST_GROUP)
-if (checkboxField1 instanceof CheckboxField) {
-    List<Option> selectedOptions = checkboxField1.getSelectedOptions();
-    log.debug("Values of \""+checkboxFieldName+"\" in group " + FIRST_GROUP + ":")
-    for(selectedOption in selectedOptions){
-        log.debug("Id: " + selectedOption.getId())
-        log.debug("Name: " + selectedOption.getName())
+def String getOptionValue(Map field) {
+    // For select fields
+    List<Map> allOptions = (field.options instanceof List) ? (List<Map>) field.options : []
+    String val = field.value ?: ""
+    String[] selectedIds = val.split(',').collect { it.trim() }
+    List<Map> selectedOptions = allOptions.findAll { opt -> selectedIds.contains(opt.id) }
+    return selectedOptions.collect { it.name }.join(', ')
+}
+
+def Map getFieldByName(String fieldName, List<Map> fields) {
+    if (!fields) return null
+    return fields.find { it.name == fieldName }
+}
+
+def List getFieldsForRow(Integer row, Object json) {
+    if (!json) return null
+    // Handle both List and Map structures for bundled fields
+    if (json instanceof List) {
+        if (row < json.size() && json[row] instanceof Map && json[row].containsKey("fields")) {
+            return json[row].fields
+        }
+    } else if (json instanceof Map) {
+        int i = 0
+        for (entry in json) {
+            def v = entry.value
+            if (i == row && v instanceof Map && v.containsKey("fields")) {
+                return v.fields
+            }
+            i++
+        }
     }
+    return null
 }
