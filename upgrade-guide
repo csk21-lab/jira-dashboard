@@ -1,0 +1,125 @@
+Elasticsearch Upgrade Guide: 7.10.2 → 8.13.4 on RHEL (RPM-based)
+✅ 1. Pre-Upgrade Checklist
+bash
+Copy
+Edit
+# Check current Elasticsearch version
+curl -X GET "http://localhost:9200"
+
+# List installed plugins
+/usr/share/elasticsearch/bin/elasticsearch-plugin list
+Save plugin list for reinstallation after upgrade.
+
+✅ 2. Take Backup Using Snapshot API
+bash
+Copy
+Edit
+# Create snapshot repository
+curl -X PUT "localhost:9200/_snapshot/my_backup_repo" -H 'Content-Type: application/json' -d '
+{
+  "type": "fs",
+  "settings": {
+    "location": "/mnt/backups/es_snapshots"
+  }
+}'
+
+# Create snapshot
+curl -X PUT "localhost:9200/_snapshot/my_backup_repo/pre_upgrade_snapshot?wait_for_completion=true"
+✅ 3. Stop Elasticsearch Service
+bash
+Copy
+Edit
+sudo systemctl stop elasticsearch
+✅ 4. Download Elasticsearch 8.13.4 RPM
+bash
+Copy
+Edit
+cd /tmp
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.13.4-x86_64.rpm
+✅ 5. Install New Version (RPM)
+bash
+Copy
+Edit
+sudo rpm -ivh --replacepkgs elasticsearch-8.13.4-x86_64.rpm
+Do not use yum update, as it may overwrite custom config files.
+
+✅ 6. Preserve and Update Configuration Files
+bash
+Copy
+Edit
+cp /etc/elasticsearch/elasticsearch.yml /etc/elasticsearch/elasticsearch.yml.bak
+cp /etc/elasticsearch/jvm.options /etc/elasticsearch/jvm.options.bak
+Optional (for testing only): Disable security by editing elasticsearch.yml
+
+yaml
+Copy
+Edit
+xpack.security.enabled: false
+xpack.security.http.ssl.enabled: false
+✅ 7. Reinstall Plugins (if any)
+Reinstall previously listed plugins:
+
+bash
+Copy
+Edit
+sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install <plugin-name>
+Example:
+
+bash
+Copy
+Edit
+sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install analysis-icu
+✅ 8. Start Elasticsearch
+bash
+Copy
+Edit
+sudo systemctl start elasticsearch
+✅ 9. Verify Upgrade
+bash
+Copy
+Edit
+curl -X GET "http://localhost:9200"
+Expected output:
+
+json
+Copy
+Edit
+"version": {
+  "number": "8.13.4"
+}
+Check logs:
+
+bash
+Copy
+Edit
+tail -f /var/log/elasticsearch/elasticsearch.log
+✅ 10. Post-Upgrade Tasks
+Reindex old indices (from 6.x or early 7.x) if needed:
+
+bash
+Copy
+Edit
+curl -X POST "localhost:9200/_reindex" -H 'Content-Type: application/json' -d '
+{
+  "source": { "index": "old_index" },
+  "dest": { "index": "new_index" }
+}'
+Re-enable security and TLS (production use).
+
+✅ References
+Upgrade Guide: https://www.elastic.co/guide/en/elasticsearch/reference/8.13/setup-upgrade.html
+
+Breaking Changes: https://www.elastic.co/guide/en/elasticsearch/reference/8.13/breaking-changes-8.0.html
+
+RPM Install: https://www.elastic.co/guide/en/elasticsearch/reference/8.13/rpm.html
+
+Let me know if you’d like this formatted into a downloadable PDF directly.
+
+
+
+
+
+
+
+
+
