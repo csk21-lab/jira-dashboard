@@ -1,0 +1,13 @@
+import requests
+
+url = "https://your-jira-domain/rest/api/2/issue/ABC-123/attachments"
+headers = {
+    "X-Atlassian-Token": "no-check"
+}
+auth = ("yourusername", "yourapitoken")
+files = {
+    'file': ('yourfile.pdf', open('/path/to/yourfile.pdf', 'rb'))
+}
+
+response = requests.post(url, headers=headers, auth=auth, files=files)
+print(response.status_code, response.text)
