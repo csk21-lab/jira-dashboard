@@ -16,21 +16,25 @@ def loggedInUser = ComponentAccessor.jiraAuthenticationContext.loggedInUser
 def runLog = []
 
 def internalDirectory = 10001
-def neverLoggedInUsers = []  // List to store never logged-in users
+def daysOfInactivity = 350  // Define the threshold for inactivity
+def neverLoggedInUsers = []  // List to store users who have never logged in, have application access, and are not inactive
 def today = new Date()
+def cutoffDate = today - daysOfInactivity  // Calculate the cutoff date for inactivity
 
 // Iterate over all users
 userManager.allApplicationUsers.each { user ->
     def directory = directoryManager.findDirectoryById(user.directoryId)
     if (directory.id == internalDirectory) {
-        // Check if the user is part of the 'jira-software-users' group
-        def groups = groupManager.getGroupsForUser(user)
-        if (groups.any { it.name == 'jira-software-users' }) {
-            // Get the login information for the user
-            def loginInfo = loginManager.getLoginInfo(user.username)
-            if (loginInfo) {
-                if (loginInfo.lastLoginTime == null) {
-                    // User has never logged in
+        // Check if the user has never logged in
+        def loginInfo = loginManager.getLoginInfo(user.username)
+        if (loginInfo && loginInfo.lastLoginTime == null) {
+            // Check if the user has Jira application access
+            def hasApplicationAccess = userService.isUserInApplication(user, "jira-software")  // Check for Jira Software application access
+            if (hasApplicationAccess) {
+                // Check if the user is inactive (i.e., hasn't logged in recently based on cutoff date)
+                def lastLogin = loginInfo.lastLoginTime ? new Date(loginInfo.lastLoginTime) : null
+                if (lastLogin == null || lastLogin.after(cutoffDate)) {
+                    // User has never logged in and is not inactive
                     neverLoggedInUsers << user.username
                 }
             }
@@ -39,8 +43,4 @@ userManager.allApplicationUsers.each { user ->
 }
 
 // Display the results
-def neverLoggedInList = neverLoggedInUsers.join(", ")
-def totalNeverLoggedInUsers = neverLoggedInUsers.size()
-
-log.warn("Total number of users who have never logged in and are in 'jira-software-users' group: ${totalNeverLoggedInUsers}")
-log.warn("List of users who have never logged in: \n${neverLoggedInList}")
+def neverLoggedInList = neverLoggedInUsers.join
