@@ -16,10 +16,8 @@ def loggedInUser = ComponentAccessor.jiraAuthenticationContext.loggedInUser
 def runLog = []
 
 def internalDirectory = 10001
-def daysOfInactivity = 350
-def neverLoggedInUsers = []
+def neverLoggedInUsers = []  // List to store never logged-in users
 def today = new Date()
-def cutoffDate = today - daysOfInactivity
 
 // Iterate over all users
 userManager.allApplicationUsers.each { user ->
@@ -34,12 +32,6 @@ userManager.allApplicationUsers.each { user ->
                 if (loginInfo.lastLoginTime == null) {
                     // User has never logged in
                     neverLoggedInUsers << user.username
-                } else {
-                    def lastLogon = new Date(loginInfo.lastLoginTime)
-                    if (lastLogon.before(cutoffDate)) {
-                        // User is inactive but has logged in before
-                        neverLoggedInUsers << user.username
-                    }
                 }
             }
         }
