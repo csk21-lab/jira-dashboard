@@ -30,17 +30,14 @@ def computerObjectBean = objectFacade.loadObjectBean(computerObjectId)
 // Get the attribute bean for 'Location' (replace 23726 with real attribute ID)
 def locationAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(23726)
 
-// Create an updated attribute bean with the new location value
+// ... previous code to get computerObjectBean, locationAttributeBean, orgLocationValue ...
+
 def updatedLocationAttributeBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(computerObjectBean, locationAttributeBean, orgLocationValue)
 
-// Apply the updated attribute and store the object
-def updatedAttributes = []
-updatedAttributes.add(updatedLocationAttributeBean)
-computerObjectBean.setObjectAttributeBeans(updatedAttributes)
-
+// Store the attribute bean (this updates the attribute value)
 try {
-    objectFacade.storeObjectBean(computerObjectBean)
+    objectFacade.storeObjectAttributeBean(updatedLocationAttributeBean)
     log.warn("Computer asset updated with new Location: ${orgLocationValue}")
 } catch (Exception e) {
-    log.warn("Failed to update Computer asset: " + e.getMessage())
+    log.warn("Failed to update Computer asset attribute: " + e.getMessage())
 }
