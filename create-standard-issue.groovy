@@ -1,27 +1,26 @@
 import com.atlassian.jira.component.ComponentAccessor
-import com.atlassian.jira.bc.issue.IssueService
-import com.atlassian.jira.issue.IssueInputParameters
+import com.atlassian.jira.issue.MutableIssue
 import com.atlassian.jira.user.ApplicationUser
 
 // =====================
 // CONFIGURE THESE
 // =====================
-final String SOURCE_ISSUE_KEY      = "ABC-123"      // The issue with the Confluence table in Description
+final String SOURCE_ISSUE_KEY      = "ABC-123"      // The issue with the table in Description
 final String TARGET_PROJECT_KEY    = "NEW"          // Where to create the new issues
 final String TARGET_ISSUE_TYPE_ID  = "10001"        // Standard issue type id (e.g. Task)
-// Optional: link type to relate back. Set to null to skip linking.
 final String ISSUE_LINK_TYPE_NAME  = "Relates"      // E.g. "Relates" (must exist in Jira or set to null)
-// Header text we are looking for (case-insensitive, trims whitespace, underscores ignored)
-final String USER_ID_HEADER_TEXT   = "USER ID"
+final String USER_ID_HEADER_TEXT   = "USER ID"      // Flexible match: "USER ID", "USER_ID", "UserId"
 
 // =====================
 // SETUP
 // =====================
 def issueManager      = ComponentAccessor.issueManager
 def customFieldMgr    = ComponentAccessor.customFieldManager
-def issueService      = ComponentAccessor.issueService
+def projectManager    = ComponentAccessor.projectManager
+def issueFactory      = ComponentAccessor.issueFactory
 def linkManager       = ComponentAccessor.issueLinkManager
-ApplicationUser user  = ComponentAccessor.jiraAuthenticationContext.loggedInUser
+def userManager       = ComponentAccessor.userManager
+ApplicationUser loggedInUser = ComponentAccessor.jiraAuthenticationContext.loggedInUser
 
 def sourceIssue = issueManager.getIssueByCurrentKey(SOURCE_ISSUE_KEY)
 assert sourceIssue : "Source issue not found: $SOURCE_ISSUE_KEY"
@@ -32,22 +31,21 @@ assert description : "Source issue has no Description."
 // =====================
 // PARSE TABLE (Flexible for single or double pipe headers)
 // =====================
-// Accepts any of:
-// || USER ID || Name || ...
-// | USER_ID | Name | ...
-// | USER ID | Name | ...
+// Accepts:
+// || USER ID || Name || Role ||
+// | USER_ID | Name | Role |
+// | USER ID | Name | Role |
+// (single or double pipe, spaces/underscores/case-insensitive)
 
 def lines = description.readLines().findAll { it.trim() }
 def tableLines = lines.findAll { it.startsWith('|') || it.startsWith('||') }
 assert tableLines && tableLines.size() >= 2 : "Table must have a header row and at least one data row."
 
-// Find header row: first row starting with || or just the first table line
+// Find header row: first table line (|| or |)
 def headerLine = tableLines.find { it.startsWith('||') } ?: tableLines[0]
-
-// Accept both || and | for header
 def headerCells = headerLine.replaceAll(/^\|+/, '').replaceAll(/\|+$/, '').split(/\|{2,}|\|/)*.trim()
 
-// Flexible matching: normalize "USER ID", "USER_ID", "UserId", etc.
+// Flexible header matching
 String normalizedHeader = USER_ID_HEADER_TEXT.replaceAll(/[\s_]/, '').toLowerCase()
 int userIdColIdx = headerCells.findIndexOf { cell ->
     cell.replaceAll(/[\s_]/, '').toLowerCase() == normalizedHeader
@@ -56,12 +54,15 @@ assert userIdColIdx >= 0 : "Could not find a header named '${USER_ID_HEADER_TEXT
 
 log.warn("USER ID column index detected as: ${userIdColIdx}")
 
-// Data rows (exclude header)
+// Data rows: exclude header
 def dataRows = tableLines.findAll { it != headerLine }
 
 // =====================
-// CREATE ISSUES
+// CREATE ISSUES (Direct, flexible)
 // =====================
+def targetProject = projectManager.getProjectObjByKey(TARGET_PROJECT_KEY)
+assert targetProject : "Target project not found: $TARGET_PROJECT_KEY"
+
 def createdKeys = []
 dataRows.eachWithIndex { row, r ->
     def dataCells = row.replaceAll(/^\|+/, '').replaceAll(/\|+$/, '').split(/\|{2,}|\|/)*.trim()
@@ -81,42 +82,36 @@ Auto-created from ${SOURCE_ISSUE_KEY}
 Table row ${r + 1}, USER ID: ${userIdValue}
 """.stripIndent()
 
-    IssueInputParameters params = issueService.newIssueInputParameters()
-    params.setProjectKey(TARGET_PROJECT_KEY)
-          .setIssueTypeId(TARGET_ISSUE_TYPE_ID)
-          .setSummary(newSummary)
-          .setDescription(newDescription)
-          .setReporterId(user.key) // Use user.accountId if on Jira Cloud
+    // Direct issue creation
+    MutableIssue issue = issueFactory.issue
+    issue.projectObject = targetProject
+    issue.summary = newSummary
+    issue.issueTypeId = TARGET_ISSUE_TYPE_ID
+    issue.assignee = loggedInUser
+    issue.reporter = loggedInUser
+    issue.description = newDescription
 
-    def validate = issueService.validateCreate(user, params)
-    if (!validate.isValid()) {
-        log.error("Validation failed for row ${r+1} (USER ID: ${userIdValue}): ${validate.errorCollection}")
-        return
-    }
+    // (Optional) Set custom fields by name here if needed, e.g.:
+    // def customField = customFieldMgr.getCustomFieldObjectByName("Your Custom Field")
+    // if (customField) issue.setCustomFieldValue(customField, someValue)
 
-    def create = issueService.create(user, validate)
-    if (!create.isValid()) {
-        log.error("Create failed for row ${r+1} (USER ID: ${userIdValue}): ${create.errorCollection}")
-        return
-    }
+    try {
+        def createdIssue = issueManager.createIssueObject(loggedInUser, issue)
+        createdKeys << createdIssue.key
+        log.warn("Created ${createdIssue.key} for USER ID ${userIdValue}")
 
-    def newIssue = create.issue
-    createdKeys << newIssue.key
-    log.warn("Created ${newIssue.key} for USER ID ${userIdValue}")
-
-    // Optional: link back to source (if link type is specified)
-    if (ISSUE_LINK_TYPE_NAME) {
-        try {
+        // Optional: link back to source (if link type is specified)
+        if (ISSUE_LINK_TYPE_NAME) {
             def linkType = ComponentAccessor.issueLinkTypeManager.issueLinkTypes.find { it.name == ISSUE_LINK_TYPE_NAME }
             if (linkType) {
-                linkManager.createIssueLink(sourceIssue.id, newIssue.id, linkType.id, 0L, user)
-                log.warn("Linked ${newIssue.key} to ${SOURCE_ISSUE_KEY} via '${ISSUE_LINK_TYPE_NAME}'")
+                linkManager.createIssueLink(sourceIssue.id, createdIssue.id, linkType.id, 0L, loggedInUser)
+                log.warn("Linked ${createdIssue.key} to ${SOURCE_ISSUE_KEY} via '${ISSUE_LINK_TYPE_NAME}'")
             } else {
                 log.warn("Link type '${ISSUE_LINK_TYPE_NAME}' not found; skipping link.")
             }
-        } catch (Throwable t) {
-            log.error("Failed to create link to ${newIssue.key}: ${t.message}", t)
         }
+    } catch (Exception e) {
+        log.error("Error creating issue for USER ID ${userIdValue}: ${e.message}")
     }
 }
 
