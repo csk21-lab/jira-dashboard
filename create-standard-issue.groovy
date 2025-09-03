@@ -1,3 +1,26 @@
+/*
+def issueFactory = ComponentAccessor.getIssueFactory()
+def issueManager = ComponentAccessor.getIssueManager()
+def loggedInUser = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
+
+def issue = issueFactory.issue
+issue.setProjectObject(ComponentAccessor.projectManager.getProjectObjByKey("NEW"))
+issue.setSummary("Demo Issue")
+issue.setIssueTypeId("10001")
+issue.setReporter(loggedInUser)
+issue.setAssignee(loggedInUser)
+issue.setDescription("Demo description")
+
+// Set custom field value
+def customField = ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Vulnerability Details")
+if (customField) {
+    issue.setCustomFieldValue(customField, "Example value")
+}
+
+def createdIssue = issueManager.createIssueObject(loggedInUser, issue)
+
+*/
+
 import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.issue.MutableIssue
 import com.atlassian.jira.user.ApplicationUser
