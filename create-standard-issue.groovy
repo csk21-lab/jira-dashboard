@@ -11,7 +11,7 @@ final String TARGET_PROJECT_KEY    = "NEW"          // Where to create the new i
 final String TARGET_ISSUE_TYPE_ID  = "10001"        // Standard issue type id (e.g. Task)
 // Optional: link type to relate back. Set to null to skip linking.
 final String ISSUE_LINK_TYPE_NAME  = "Relates"      // E.g. "Relates" (must exist in Jira or set to null)
-// Header text we are looking for (case-insensitive, trims whitespace)
+// Header text we are looking for (case-insensitive, trims whitespace, underscores ignored)
 final String USER_ID_HEADER_TEXT   = "USER ID"
 
 // =====================
@@ -30,36 +30,41 @@ def description = sourceIssue.getDescription()
 assert description : "Source issue has no Description."
 
 // =====================
-// PARSE CONFLUENCE TABLE (WIKI MARKUP)
+// PARSE TABLE (Flexible for single or double pipe headers)
 // =====================
-// Accepts either:
-// || USER ID || Name || ... ||
-// | user1 | Alice | ... |
-// | user2 | Bob   | ... |
+// Accepts any of:
+// || USER ID || Name || ...
+// | USER_ID | Name | ...
+// | USER ID | Name | ...
 
 def lines = description.readLines().findAll { it.trim() }
 def tableLines = lines.findAll { it.startsWith('|') || it.startsWith('||') }
 assert tableLines && tableLines.size() >= 2 : "Table must have a header row and at least one data row."
 
-// Parse header row (starts with '||')
-def headerLine = tableLines.find { it.startsWith('||') }
-assert headerLine : "No table header found (row starting with '||')."
-def headerCells = headerLine.replaceAll(/^(\|\|)+/, '').split(/\|\|/)*.trim()
-int userIdColIdx = headerCells.findIndexOf { it.equalsIgnoreCase(USER_ID_HEADER_TEXT) }
+// Find header row: first row starting with || or just the first table line
+def headerLine = tableLines.find { it.startsWith('||') } ?: tableLines[0]
+
+// Accept both || and | for header
+def headerCells = headerLine.replaceAll(/^\|+/, '').replaceAll(/\|+$/, '').split(/\|{2,}|\|/)*.trim()
+
+// Flexible matching: normalize "USER ID", "USER_ID", "UserId", etc.
+String normalizedHeader = USER_ID_HEADER_TEXT.replaceAll(/[\s_]/, '').toLowerCase()
+int userIdColIdx = headerCells.findIndexOf { cell ->
+    cell.replaceAll(/[\s_]/, '').toLowerCase() == normalizedHeader
+}
 assert userIdColIdx >= 0 : "Could not find a header named '${USER_ID_HEADER_TEXT}' in the table header row."
 
 log.warn("USER ID column index detected as: ${userIdColIdx}")
 
-// Parse data rows (start with single '|', not '||')
-def dataRows = tableLines.findAll { it.startsWith('|') && !it.startsWith('||') }
-assert dataRows : "No data rows found in table."
+// Data rows (exclude header)
+def dataRows = tableLines.findAll { it != headerLine }
 
 // =====================
 // CREATE ISSUES
 // =====================
 def createdKeys = []
 dataRows.eachWithIndex { row, r ->
-    def dataCells = row.replaceAll(/^\|+/, '').split(/\|/)*.trim()
+    def dataCells = row.replaceAll(/^\|+/, '').replaceAll(/\|+$/, '').split(/\|{2,}|\|/)*.trim()
     if (dataCells.size() <= userIdColIdx) {
         log.warn("Row ${r + 1} has no USER ID column or is malformed; skipping.")
         return
