@@ -1,0 +1,28 @@
+Case A — CCL3 has direct CCL1 attribute
+objectType = "Cause Code Level 3"
+AND (
+  ( "Cause Code Level 1".Name != "Unknown"
+    AND "Cause Code Level 1" = ${"Cause Code Level 1"}
+    AND "Cause Code Level 2" = ${"Cause Code Level 2"}
+  )
+  OR
+  ( "Cause Code Level 1".Name = "Unknown"
+    AND Name IN ("No Logs" /*, "Another Allowed", "Third Allowed" */)
+    AND "Cause Code Level 2" = ${"Cause Code Level 2"}
+  )
+)
+
+
+Case B — CCL3 has no direct CCL1 (chain via CCL2)
+objectType = "Cause Code Level 3"
+AND (
+  ( "Cause Code Level 2"."Cause Code Level 1".Name != "Unknown"
+    AND "Cause Code Level 2" = ${"Cause Code Level 2"}
+    AND "Cause Code Level 2"."Cause Code Level 1" = ${"Cause Code Level 1"}
+  )
+  OR
+  ( "Cause Code Level 2"."Cause Code Level 1".Name = "Unknown"
+    AND Name IN ("No Logs" /*, "Another Allowed", "Third Allowed" */)
+    AND "Cause Code Level 2" = ${"Cause Code Level 2"}
+  )
+)
