@@ -8,10 +8,22 @@ def issue = issueManager.getIssueObject("ABC-123")
 //=== Get custom field managers ===
 def customFieldManager = ComponentAccessor.customFieldManager
 
-//=== Get OLocation asset field and value ===
-def orgLocationField = customFieldManager.getCustomFieldObjectByName("Adobe Location")
-
-def orgLocationObjects = issue.getCustomFieldValue(orgLocationField) // Insight objects list
+//=== Asset fields, attribute names, and corresponding User Picker fields ===
+def assetFieldNames = [
+    "Computer Asset", 
+    "Mobile Asset", 
+    "License Asset"
+]
+def userPickerFieldNames = [
+    "User Picker 1",
+    "User Picker 2",
+    "User Picker 3"
+]
+def attributeNames = [
+    "Owner",
+    "Responsible User",
+    "Assigned To"
+]
 
 //=== Prepare Insight API access ===
 def pluginAccessor = ComponentAccessor.pluginAccessor
@@ -22,148 +34,47 @@ def objectTypeAttributeFacade = ComponentAccessor.getOSGiComponentInstanceOfType
 def objectAttributeBeanFactoryClass = pluginAccessor.getClassLoader().findClass("com.riadalabs.jira.plugins.insight.services.model.factory.ObjectAttributeBeanFactory")
 def objectAttributeBeanFactory = ComponentAccessor.getOSGiComponentInstanceOfType(objectAttributeBeanFactoryClass)
 
-//=== Get Computer asset object from issue custom field ===
-def computerField = customFieldManager.getCustomFieldObject("customfield_16008")
-def computerObjects = issue.getCustomFieldValue(computerField)
-def computerObject = computerObjects ? computerObjects[0] : null
+assetFieldNames.eachWithIndex { assetFieldName, idx ->
+    def assetField = customFieldManager.getCustomFieldObjectByName(assetFieldName)
+    def userPickerField = customFieldManager.getCustomFieldObjectByName(userPickerFieldNames[idx])
+    def attributeName = attributeNames[idx]
 
-//=== Process OLocation asset and extract label and City ===
-def orgLocationLabel = null
-def cityValue = null
-def streetValue = null
-def stateValue = null
-def departmentValue = null
-def officeValue = null
+    def assetObjects = issue.getCustomFieldValue(assetField)
+    def assetObject = (assetObjects instanceof List) ? (assetObjects ? assetObjects[0] : null) : assetObjects
 
-if (orgLocationObjects && orgLocationObjects.size() > 0) {
-    def orgLocationObject = orgLocationObjects[0]
-    def orgLocationObjectBean = objectFacade.loadObjectBean(orgLocationObject.id)
-    orgLocationLabel = orgLocationObjectBean.label
-
-    // Get all attribute beans for OLocation object
-    def attributeBeans = orgLocationObjectBean.getObjectAttributeBeans()
-
-    // Find the "City" attribute (by name)
-    def cityAttributeBean = attributeBeans.find {
-        def objectTypeAttributeId = it.getObjectTypeAttributeId()
-        def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(objectTypeAttributeId)
-        objectTypeAttributeBean.getName() == "City"
+    def userValue = issue.getCustomFieldValue(userPickerField)
+    // Assume userValue can be an ApplicationUser, or a list (multi-user picker)
+    def userKey = null
+    if (userValue instanceof com.atlassian.jira.user.ApplicationUser) {
+        userKey = userValue.key
+    } else if (userValue instanceof List && userValue && userValue[0] instanceof com.atlassian.jira.user.ApplicationUser) {
+        userKey = userValue[0].key
     }
-    cityValue = cityAttributeBean?.getObjectAttributeValueBeans()?.getAt(0)?.getValue()
 
-    
-    // Find the "Street" attribute
-    def streetAttributeBean = attributeBeans.find {
-        def objectTypeAttributeId = it.getObjectTypeAttributeId()
-        def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(objectTypeAttributeId)
-        objectTypeAttributeBean.getName() == "Street"
-    }
-    streetValue = streetAttributeBean?.getObjectAttributeValueBeans()?.getAt(0)?.getValue()
-
-    // Find the "State" attribute
-    def stateAttributeBean = attributeBeans.find {
-        def objectTypeAttributeId = it.getObjectTypeAttributeId()
-        def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(objectTypeAttributeId)
-        objectTypeAttributeBean.getName() == "State"
-    }
-    stateValue = stateAttributeBean?.getObjectAttributeValueBeans()?.getAt(0)?.getValue()
-    
-    log.warn("OLocation label: ${orgLocationLabel}")
-    log.warn("City attribute value: ${cityValue}")
-    log.warn("street attribute value: ${streetValue}")
-    log.warn("state attribute value: ${stateValue}")
-
-
-} else {
-    log.warn("No OLocation asset found on issue.")
-}
-
-
-//Reporter Details 
-    def reporterDetailsField = customFieldManager.getCustomFieldObjectByName("Reporter Details")
-
-
-    // Get the value of the Reporter Details field
-    def reporterDetailsValue = issue.getCustomFieldValue(reporterDetailsField)
-
-   // if (reporterDetailsValue) {
-        // Print the entire reporterDetailsValue structure for debugging
-        println "Reporter Details Value: ${reporterDetailsValue}"
-
-        // Assuming the structure is as follows:
-        // userAttr is nested within valueMap, which is indexed by some key (like 1)
-        def valueMap = reporterDetailsValue.valueMap
-        if (valueMap) {
-            valueMap.each { key, value ->
-                println "Key: ${key}, Value: ${value}"
-                // Check if userAttr exists and print it
-                def userAttr = value.userAttr
-                if (userAttr) {
-                    println "User Attributes: ${userAttr}"
-                    officeValue = userAttr.get("Office") // Access the "Office" attribute
-                    log.warn("Office: ${officeValue}")
-                    def jobRoleValue = userAttr.get("Job title") // Access the "Office" attribute
-                    log.warn("Job title: ${jobRoleValue}")
-                    departmentValue = userAttr.get("Department") // Access the "Office" attribute
-                    log.warn("department: ${departmentValue}")
-                } else {
-                    println "No userAttr found for key: ${key}"
-                }
+    if (assetObject && userKey) {
+        def assetObjectBean = objectFacade.loadObjectBean(assetObject.id)
+        // Find the attribute by name
+        def attributeBeans = assetObjectBean.getObjectAttributeBeans()
+        def attrBean = attributeBeans.find { attr ->
+            def objectTypeAttributeId = attr.getObjectTypeAttributeId()
+            def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(objectTypeAttributeId)
+            objectTypeAttributeBean.getName() == attributeName
+        }
+        if (attrBean) {
+            def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(attrBean.getObjectTypeAttributeId())
+            def updatedAttrBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(assetObjectBean, objectTypeAttributeBean, userKey)
+            try {
+                objectFacade.storeObjectAttributeBean(updatedAttrBean)
+                log.warn("Updated ${attributeName} for ${assetFieldName} with user from ${userPickerFieldNames[idx]}: ${userKey}")
+            } catch (Exception e) {
+                log.warn("Failed to update ${attributeName} for ${assetFieldName}: " + e.getMessage())
             }
         } else {
-            println "No valueMap found in Reporter Details."
-        } 
-   // }// else {
-      //  println "No Reporter Details found for this issue."
-   // }
-
-//=== Update Computer asset's Location and City attributes ===
-if (computerObject && orgLocationLabel) {
-    def computerObjectBean = objectFacade.loadObjectBean(computerObject.id)
-    // Replace with your real attribute IDs for Location and City
-    def locationAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(23726)
-    def cityAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(23725)
-    def streetAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(24127)
-    def stateAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(24128)
-    def departmentAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(23723)
-    def officeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(23722)
- 
-
-
-
-    // Create attribute beans for update
-    def updatedLocationAttributeBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(computerObjectBean, locationAttributeBean, orgLocationLabel)
-    def updatedCityAttributeBean = null
-    if (cityValue) {
-        updatedCityAttributeBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(computerObjectBean, cityAttributeBean, cityValue)
-    }
-    def updatedStreetAttributeBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(computerObjectBean, streetAttributeBean, streetValue)
-    def updatedStateAttributeBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(computerObjectBean, stateAttributeBean, stateValue)
-    def updatedDepartmentAttributeBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(computerObjectBean, departmentAttributeBean, departmentValue)
-    def updatedOfficeAttributeBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(computerObjectBean, officeAttributeBean, officeValue)
-
-
-
-
-
-    // Store updated attributes
-    try {
-        objectFacade.storeObjectAttributeBean(updatedLocationAttributeBean)
-        objectFacade.storeObjectAttributeBean(updatedStreetAttributeBean)
-        objectFacade.storeObjectAttributeBean(updatedStateAttributeBean)
-        objectFacade.storeObjectAttributeBean(updatedDepartmentAttributeBean)
-        objectFacade.storeObjectAttributeBean(updatedOfficeAttributeBean)
-
-
-        if (updatedCityAttributeBean) {
-            objectFacade.storeObjectAttributeBean(updatedCityAttributeBean)
-            log.warn("Computer asset updated with new Location: ${orgLocationLabel} - City: ${cityValue} - Street : ${streetValue} - State : ${stateValue} - Department : ${departmentValue} - Office : ${officeValue}")
-        } else {
-            log.warn("Computer asset updated with new Location: ${orgLocationLabel}")
+            log.warn("No attribute named '${attributeName}' found on asset object ${assetFieldName}")
         }
-    } catch (Exception e) {
-        log.warn("Failed to update Computer asset attribute: " + e.getMessage())
+    } else {
+        log.warn("Asset field ${assetFieldName} or user picker field ${userPickerFieldNames[idx]} value is missing")
     }
-} else {
-    log.warn("Computer asset or Location value is missing, update skipped.")
 }
+
+// ... rest of your original script ...
