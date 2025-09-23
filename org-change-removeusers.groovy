@@ -66,9 +66,8 @@ assetFieldNames.eachWithIndex { assetFieldName, idx ->
             // Only remove if the attribute is currently set to the same user
             def currentValue = attrBean.getObjectAttributeValueBeans()?.find { it.value == userKey }
             if (currentValue) {
-                def emptyAttrBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(assetObjectBean, objectTypeAttributeBean, null)
                 try {
-                    objectFacade.storeObjectAttributeBean(emptyAttrBean)
+                    objectFacade.removeObjectAttributeBean(attrBean)
                     log.warn("Removed ${attributeName} for ${assetFieldName} (was user from ${userPickerFieldNames[idx]}: ${userKey})")
                 } catch (Exception e) {
                     log.warn("Failed to remove ${attributeName} for ${assetFieldName}: " + e.getMessage())
