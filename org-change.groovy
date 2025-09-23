@@ -34,46 +34,57 @@ def objectTypeAttributeFacade = ComponentAccessor.getOSGiComponentInstanceOfType
 def objectAttributeBeanFactoryClass = pluginAccessor.getClassLoader().findClass("com.riadalabs.jira.plugins.insight.services.model.factory.ObjectAttributeBeanFactory")
 def objectAttributeBeanFactory = ComponentAccessor.getOSGiComponentInstanceOfType(objectAttributeBeanFactoryClass)
 
-assetFieldNames.eachWithIndex { assetFieldName, idx ->
-    def assetField = customFieldManager.getCustomFieldObjectByName(assetFieldName)
-    def userPickerField = customFieldManager.getCustomFieldObjectByName(userPickerFieldNames[idx])
-    def attributeName = attributeNames[idx]
-
-    def assetObjects = issue.getCustomFieldValue(assetField)
-    def assetObject = (assetObjects instanceof List) ? (assetObjects ? assetObjects[0] : null) : assetObjects
-
+// Collect all user picker values and their corresponding info
+def userPickerInfos = userPickerFieldNames.collectWithIndex { pickerName, idx ->
+    def userPickerField = customFieldManager.getCustomFieldObjectByName(pickerName)
     def userValue = issue.getCustomFieldValue(userPickerField)
-    // Assume userValue can be an ApplicationUser, or a list (multi-user picker)
     def userKey = null
     if (userValue instanceof com.atlassian.jira.user.ApplicationUser) {
         userKey = userValue.key
     } else if (userValue instanceof List && userValue && userValue[0] instanceof com.atlassian.jira.user.ApplicationUser) {
         userKey = userValue[0].key
     }
+    [
+        idx: idx,
+        pickerName: pickerName,
+        userKey: userKey
+    ]
+}
 
-    if (assetObject && userKey) {
-        def assetObjectBean = objectFacade.loadObjectBean(assetObject.id)
-        // Find the attribute by name
-        def attributeBeans = assetObjectBean.getObjectAttributeBeans()
-        def attrBean = attributeBeans.find { attr ->
-            def objectTypeAttributeId = attr.getObjectTypeAttributeId()
-            def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(objectTypeAttributeId)
-            objectTypeAttributeBean.getName() == attributeName
-        }
-        if (attrBean) {
-            def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(attrBean.getObjectTypeAttributeId())
-            def updatedAttrBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(assetObjectBean, objectTypeAttributeBean, userKey)
-            try {
-                objectFacade.storeObjectAttributeBean(updatedAttrBean)
-                log.warn("Updated ${attributeName} for ${assetFieldName} with user from ${userPickerFieldNames[idx]}: ${userKey}")
-            } catch (Exception e) {
-                log.warn("Failed to update ${attributeName} for ${assetFieldName}: " + e.getMessage())
+// Only update attributes for fields that have values
+userPickerInfos.each { info ->
+    if (info.userKey) {
+        def assetFieldName = assetFieldNames[info.idx]
+        def attributeName = attributeNames[info.idx]
+
+        def assetField = customFieldManager.getCustomFieldObjectByName(assetFieldName)
+        def assetObjects = issue.getCustomFieldValue(assetField)
+        def assetObject = (assetObjects instanceof List) ? (assetObjects ? assetObjects[0] : null) : assetObjects
+
+        if (assetObject) {
+            def assetObjectBean = objectFacade.loadObjectBean(assetObject.id)
+            // Find the attribute by name
+            def attributeBeans = assetObjectBean.getObjectAttributeBeans()
+            def attrBean = attributeBeans.find { attr ->
+                def objectTypeAttributeId = attr.getObjectTypeAttributeId()
+                def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(objectTypeAttributeId)
+                objectTypeAttributeBean.getName() == attributeName
+            }
+            if (attrBean) {
+                def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(attrBean.getObjectTypeAttributeId())
+                def updatedAttrBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(assetObjectBean, objectTypeAttributeBean, info.userKey)
+                try {
+                    objectFacade.storeObjectAttributeBean(updatedAttrBean)
+                    log.warn("Updated ${attributeName} for ${assetFieldName} with user from ${info.pickerName}: ${info.userKey}")
+                } catch (Exception e) {
+                    log.warn("Failed to update ${attributeName} for ${assetFieldName}: " + e.getMessage())
+                }
+            } else {
+                log.warn("No attribute named '${attributeName}' found on asset object ${assetFieldName}")
             }
         } else {
-            log.warn("No attribute named '${attributeName}' found on asset object ${assetFieldName}")
+            log.warn("Asset field ${assetFieldName} value is missing")
         }
-    } else {
-        log.warn("Asset field ${assetFieldName} or user picker field ${userPickerFieldNames[idx]} value is missing")
     }
 }
 
