@@ -43,16 +43,16 @@ assetFieldNames.eachWithIndex { assetFieldName, idx ->
     def assetObject = (assetObjects instanceof List) ? (assetObjects ? assetObjects[0] : null) : assetObjects
 
     def userValue = issue.getCustomFieldValue(userPickerField)
-    // Determine userKey only if userValue is present
-    def userKey = null
+    // Support both single and multi-user picker fields
+    def userKeys = []
     if (userValue instanceof com.atlassian.jira.user.ApplicationUser) {
-        userKey = userValue.key
+        userKeys << userValue.key
     } else if (userValue instanceof List && userValue && userValue[0] instanceof com.atlassian.jira.user.ApplicationUser) {
-        userKey = userValue[0].key
+        userKeys.addAll(userValue.collect { it.key })
     }
 
-    // Only proceed if userKey is set (user picker field is non-empty) and assetObject is present
-    if (assetObject && userKey) {
+    // Only proceed if userKeys is not empty and assetObject is present
+    if (assetObject && userKeys && userKeys.size() > 0) {
         def assetObjectBean = objectFacade.loadObjectBean(assetObject.id)
         // Find the attribute by name
         def attributeBeans = assetObjectBean.getObjectAttributeBeans()
@@ -63,17 +63,18 @@ assetFieldNames.eachWithIndex { assetFieldName, idx ->
         }
         if (attrBean) {
             def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(attrBean.getObjectTypeAttributeId())
-            // Only remove if the attribute is currently set to the same user
-            def currentValue = attrBean.getObjectAttributeValueBeans()?.find { it.value == userKey }
-            if (currentValue) {
+            // Remove attribute if any of the current values match any of the user keys
+            def currentValues = attrBean.getObjectAttributeValueBeans()?.collect { it.value }
+            def removableUserKeys = currentValues.intersect(userKeys)
+            if (removableUserKeys && removableUserKeys.size() > 0) {
                 try {
                     objectFacade.removeObjectAttributeBean(attrBean)
-                    log.warn("Removed ${attributeName} for ${assetFieldName} (was user from ${userPickerFieldNames[idx]}: ${userKey})")
+                    log.warn("Removed ${attributeName} for ${assetFieldName} (was user(s) from ${userPickerFieldNames[idx]}: ${removableUserKeys.join(',')})")
                 } catch (Exception e) {
                     log.warn("Failed to remove ${attributeName} for ${assetFieldName}: " + e.getMessage())
                 }
             } else {
-                log.warn("Attribute ${attributeName} for ${assetFieldName} does not match user from ${userPickerFieldNames[idx]}: ${userKey}, not removed")
+                log.warn("Attribute ${attributeName} for ${assetFieldName} does not match any user from ${userPickerFieldNames[idx]}: ${userKeys.join(',')}, not removed")
             }
         } else {
             log.warn("No attribute named '${attributeName}' found on asset object ${assetFieldName}")
