@@ -38,22 +38,22 @@ def objectAttributeBeanFactory = ComponentAccessor.getOSGiComponentInstanceOfTyp
 def userPickerInfos = userPickerFieldNames.collectWithIndex { pickerName, idx ->
     def userPickerField = customFieldManager.getCustomFieldObjectByName(pickerName)
     def userValue = issue.getCustomFieldValue(userPickerField)
-    def userKey = null
+    def userKeys = []
     if (userValue instanceof com.atlassian.jira.user.ApplicationUser) {
-        userKey = userValue.key
+        userKeys << userValue.key
     } else if (userValue instanceof List && userValue && userValue[0] instanceof com.atlassian.jira.user.ApplicationUser) {
-        userKey = userValue[0].key
+        userKeys.addAll(userValue*.key)
     }
     [
         idx: idx,
         pickerName: pickerName,
-        userKey: userKey
+        userKeys: userKeys
     ]
 }
 
 // Only update attributes for fields that have values
 userPickerInfos.each { info ->
-    if (info.userKey) {
+    if (info.userKeys && info.userKeys.size() > 0) {
         def assetFieldName = assetFieldNames[info.idx]
         def attributeName = attributeNames[info.idx]
 
@@ -72,10 +72,24 @@ userPickerInfos.each { info ->
             }
             if (attrBean) {
                 def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(attrBean.getObjectTypeAttributeId())
-                def updatedAttrBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(assetObjectBean, objectTypeAttributeBean, info.userKey)
+
+                // Get existing values (append mode)
+                def currentUserKeys = []
+                def currentValues = attrBean.getObjectAttributeValueBeans()
+                if (currentValues) {
+                    currentValues.each { v ->
+                        if (v.value) {
+                            currentUserKeys << v.value.toString()
+                        }
+                    }
+                }
+                // Merge and deduplicate
+                def allUserKeys = (currentUserKeys + info.userKeys).unique()
+                // Build the attribute bean with all user keys
+                def updatedAttrBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(assetObjectBean, objectTypeAttributeBean, allUserKeys)
                 try {
                     objectFacade.storeObjectAttributeBean(updatedAttrBean)
-                    log.warn("Updated ${attributeName} for ${assetFieldName} with user from ${info.pickerName}: ${info.userKey}")
+                    log.warn("Appended users to ${attributeName} for ${assetFieldName} from ${info.pickerName}: ${info.userKeys}")
                 } catch (Exception e) {
                     log.warn("Failed to update ${attributeName} for ${assetFieldName}: " + e.getMessage())
                 }
