@@ -2,15 +2,12 @@ import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.issue.Issue
 import com.atlassian.jira.user.ApplicationUser
 import com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectFacade
-import com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectSchemaFacade
 
 // --- CONFIGURE THESE ---
-def computerFieldName = "Computer"
-def assignedToAttributeName = "Assigned to"
-def computerObjectTypeName = "Computer"
-def outputTextFieldName = "Reporter’s Computers"
-def schemaName = "yourSchemaName" // <-- CHANGE THIS to your schema
-
+def schemaId = 123 // <-- CHANGE THIS to your schema ID!
+def computerObjectTypeName = "Computer" // <-- Ensure this matches your object type name
+def assignedToAttributeName = "Assigned to" // <-- Ensure this matches your attribute name
+def outputTextFieldName = "Reporter’s Computers" // <-- Ensure this matches your custom field name
 def issueKey = "PROJ-123" // <-- CHANGE THIS to your issue key
 
 def issueManager = ComponentAccessor.getIssueManager()
@@ -21,33 +18,30 @@ ApplicationUser reporter = issue.getReporter()
 if (!reporter) throw new IllegalArgumentException("Issue '${issueKey}' has no reporter!")
 
 def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectFacade)
-def objectSchemaFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectSchemaFacade)
 def customFieldManager = ComponentAccessor.getCustomFieldManager()
 
-def schemas = objectSchemaFacade.findAll()
-if (!schemas || schemas.isEmpty()) {
-    throw new IllegalArgumentException("No Insight/Assets schemas found!")
+// Get object types for the schema by ID
+def objectTypeBeans = objectFacade.findObjectTypeBeans(schemaId)
+if (!objectTypeBeans || objectTypeBeans.isEmpty()) {
+    throw new IllegalArgumentException("No object types found for schema ID '${schemaId}'!")
 }
-// Debug: print all schema names
-schemas.each { println "Schema: ${it.name}" }
-
-def targetSchema = schemas.find { it.name == schemaName }
-if (!targetSchema) {
-    throw new IllegalArgumentException("Schema '${schemaName}' not found! Available: " + schemas.collect{ it.name }.join(', '))
-}
-
-def objectTypeBeans = objectFacade.findObjectTypeBeans(targetSchema.id)
 def computerObjectTypeBean = objectTypeBeans.find { it.name == computerObjectTypeName }
 if (!computerObjectTypeBean) {
-    throw new IllegalArgumentException("Object type '${computerObjectTypeName}' not found in schema '${schemaName}'!")
+    throw new IllegalArgumentException("Object type '${computerObjectTypeName}' not found in schema with ID '${schemaId}'! Available types: " + objectTypeBeans.collect{it.name})
 }
 def computerObjectTypeId = computerObjectTypeBean.id
 
 def computerAssets = objectFacade.findObjectBeansByObjectType(computerObjectTypeId)
+if (!computerAssets || computerAssets.isEmpty()) {
+    log.warn("No Computer assets found for object type ID ${computerObjectTypeId}")
+}
 
 def reporterAssets = computerAssets.findAll { asset ->
-    def assignedToAttr = asset.objectAttributeBeans.find { it.objectTypeAttributeBean.name == assignedToAttributeName }
-    def assignedToValue = assignedToAttr?.getObjectAttributeValueBeans()?.first()?.value
+    def assignedToAttr = asset.objectAttributeBeans.find { 
+        // Use correct getter for attribute name, varies by Insight version
+        it.objectTypeAttributeBean?.name == assignedToAttributeName 
+    }
+    def assignedToValue = assignedToAttr?.objectAttributeValueBeans?.first()?.value
     assignedToValue?.toString() == reporter?.key
 }
 
