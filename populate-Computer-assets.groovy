@@ -9,35 +9,31 @@ def computerFieldName = "Computer"
 def assignedToAttributeName = "Assigned to"
 def computerObjectTypeName = "Computer"
 def outputTextFieldName = "Reporter’s Computers"
-def schemaName = "yourSchemaName" // <-- set your schema name
+def schemaName = "yourSchemaName" // <-- CHANGE THIS to your schema
 
-// --- SET YOUR ISSUE KEY HERE ---
-def issueKey = "PROJ-123" // <-- set your issue key
+def issueKey = "PROJ-123" // <-- CHANGE THIS to your issue key
 
 def issueManager = ComponentAccessor.getIssueManager()
 Issue issue = issueManager.getIssueObject(issueKey)
-if (!issue) {
-    throw new IllegalArgumentException("Issue with key '${issueKey}' not found!")
-}
+if (!issue) throw new IllegalArgumentException("Issue with key '${issueKey}' not found!")
 
 ApplicationUser reporter = issue.getReporter()
-if (!reporter) {
-    throw new IllegalArgumentException("Issue '${issueKey}' has no reporter!")
-}
+if (!reporter) throw new IllegalArgumentException("Issue '${issueKey}' has no reporter!")
 
 def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectFacade)
 def objectSchemaFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectSchemaFacade)
 def customFieldManager = ComponentAccessor.getCustomFieldManager()
 
-// THIS IS THE PROPER WAY:
 def schemas = objectSchemaFacade.findAll()
 if (!schemas || schemas.isEmpty()) {
     throw new IllegalArgumentException("No Insight/Assets schemas found!")
 }
+// Debug: print all schema names
+schemas.each { println "Schema: ${it.name}" }
+
 def targetSchema = schemas.find { it.name == schemaName }
 if (!targetSchema) {
-    throw new IllegalArgumentException("Schema '${schemaName}' not found in Insight/Assets! Available schemas: " +
-        schemas.collect{ it.name }.join(', '))
+    throw new IllegalArgumentException("Schema '${schemaName}' not found! Available: " + schemas.collect{ it.name }.join(', '))
 }
 
 def objectTypeBeans = objectFacade.findObjectTypeBeans(targetSchema.id)
@@ -59,9 +55,7 @@ def assetListText = reporterAssets.collect { asset ->
     "Name: ${asset.name}, Key: ${asset.objectKey}"
 }.join("\n")
 
-if (!assetListText) {
-    assetListText = "No computers assigned to reporter."
-}
+if (!assetListText) assetListText = "No computers assigned to reporter."
 
 def outputTextField = customFieldManager.getCustomFieldObjectByName(outputTextFieldName)
 if (outputTextField) {
