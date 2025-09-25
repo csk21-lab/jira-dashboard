@@ -1,0 +1,35 @@
+Step-by-Step: Jira Automation Rule
+1. Trigger
+Set the trigger to run on a schedule (e.g., “Scheduled” every day).
+Or, trigger when an issue is updated/created if you want instant results.
+2. JQL Condition
+Add a “JQL Condition” to select relevant parent issues.
+Example JQL:
+Code
+project = YOUR_PROJECT AND issuetype != Sub-task AND "Schedule Type" in ("Weekly", "Monthly")
+Optionally, add further criteria as needed.
+3. Advanced Compare Conditions (Date Window)
+Add an "Advanced compare condition" to check that:
+Start Date <= {{now}}
+End Date >= {{now}}
+Example conditions:
+{{issue.Start Date}} <= {{now}}
+{{issue.End Date}} >= {{now}}
+4. Sub-task Check (No Open Subtasks)
+Add a “Related Issues Condition”:
+Type: Sub-tasks
+Condition: Status != Done (or Status = Open, depending on your workflow)
+Set to “None match”
+5. Create Sub-task Action
+Add the “Create Issue” action:
+Issue type: Sub-task
+Parent: {{issue.key}}
+Summary: Scheduled {{issue.Schedule Type}} Subtask
+Description: Automatically created. Duration: {{issue.Start Date}} - {{issue.End Date}}
+Set custom fields (Start Date, End Date, Schedule Type) using smart values.
+Summary of the Rule Structure
+Scheduled trigger (daily or as needed)
+JQL condition for schedule type and parent issue
+Date window check (start <= now <= end)
+No open subtasks condition
+Create sub-task with smart values from parent
