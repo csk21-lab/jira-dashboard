@@ -32,7 +32,7 @@ def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectFacade
 def objectSchemaFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectSchemaFacade)
 def customFieldManager = ComponentAccessor.getCustomFieldManager()
 
-// Find the schema by name
+// Find the schema by name (get all schemas, then filter)
 def schemas = objectSchemaFacade.findAll()
 def targetSchema = schemas.find { it.name == schemaName }
 if (!targetSchema) {
