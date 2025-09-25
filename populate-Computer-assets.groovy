@@ -2,12 +2,14 @@ import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.issue.Issue
 import com.atlassian.jira.user.ApplicationUser
 import com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectFacade
+import com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectSchemaFacade
 
 // --- CONFIGURE THESE ---
 def computerFieldName = "Computer" // Asset field on the ticket
 def assignedToAttributeName = "Assigned to"
-def computerObjectTypeName = "Computer" // Asset schema/object type
+def computerObjectTypeName = "Computer" // Object type name in your schema
 def outputTextFieldName = "Reporter’s Computers" // Name of the custom text field for output
+def schemaName = "yourSchemaName" // <--- CHANGE THIS TO YOUR Assets/Insight schema name
 
 // --- SET YOUR ISSUE KEY HERE ---
 def issueKey = "PROJ-123" // <--- CHANGE THIS TO YOUR ISSUE KEY
@@ -27,17 +29,28 @@ if (!reporter) {
 
 // Assets/Insight API access
 def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectFacade)
+def objectSchemaFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectSchemaFacade)
 def customFieldManager = ComponentAccessor.getCustomFieldManager()
 
-// Get all Computer assets
-def computerObjectTypeBeans = objectFacade.findObjectTypeBeansByName(computerObjectTypeName)
-if (!computerObjectTypeBeans || computerObjectTypeBeans.isEmpty()) {
-    throw new IllegalArgumentException("Object type '${computerObjectTypeName}' not found in Insight/Assets!")
+// Find the schema by name
+def schemas = objectSchemaFacade.findAll()
+def targetSchema = schemas.find { it.name == schemaName }
+if (!targetSchema) {
+    throw new IllegalArgumentException("Schema '${schemaName}' not found in Insight/Assets!")
 }
-def computerObjectTypeId = computerObjectTypeBeans[0].getId()
+
+// Find the object type by name within the schema
+def objectTypeBeans = objectFacade.findObjectTypeBeans(targetSchema.id)
+def computerObjectTypeBean = objectTypeBeans.find { it.name == computerObjectTypeName }
+if (!computerObjectTypeBean) {
+    throw new IllegalArgumentException("Object type '${computerObjectTypeName}' not found in schema '${schemaName}'!")
+}
+def computerObjectTypeId = computerObjectTypeBean.id
+
+// Get all Computer assets
 def computerAssets = objectFacade.findObjectBeansByObjectType(computerObjectTypeId)
 
-// Filter assets assigned to reporter (using key; adjust if you want email/username matching)
+// Filter assets assigned to reporter (matching reporter's key)
 def reporterAssets = computerAssets.findAll { asset ->
     def assignedToAttr = asset.objectAttributeBeans.find { it.objectTypeAttributeBean.name == assignedToAttributeName }
     def assignedToValue = assignedToAttr?.getObjectAttributeValueBeans()?.first()?.value
