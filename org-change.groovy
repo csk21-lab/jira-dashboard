@@ -31,14 +31,16 @@ def objectFacadeClass = pluginAccessor.getClassLoader().findClass("com.riadalabs
 def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(objectFacadeClass)
 
 // Collect all user picker values and their corresponding info
-def userPickerInfos = userPickerFieldNames.collectWithIndex { pickerName, idx ->
+def userPickerInfos = userPickerFieldNames.withIndex().collect { entry ->
+    def pickerName = entry[0]
+    def idx = entry[1]
     def userPickerField = customFieldManager.getCustomFieldObjectByName(pickerName)
     def userValue = issue.getCustomFieldValue(userPickerField)
     def userKeys = []
     if (userValue instanceof com.atlassian.jira.user.ApplicationUser) {
         userKeys << userValue.key
     } else if (userValue instanceof List && userValue && userValue[0] instanceof com.atlassian.jira.user.ApplicationUser) {
-        userKeys.addAll(userValue*.key)
+        userKeys.addAll(userValue.collect { it.key })
     }
     [
         idx: idx,
@@ -59,13 +61,12 @@ userPickerInfos.each { info ->
 
         if (assetObject) {
             // --- HAPI-style update ---
-            // assetObject is an Insight object bean; for HAPI, assume it has an .update closure method.
             assetObject.update {
                 setAttribute(attributeName) {
-                    add(*info.userKeys)
+                    add(*info.userKeys) // Pass keys as String[]
                 }
             }
-            log.warn("HAPI: Appended users to ${attributeName} for ${assetFieldName} from ${info.pickerName}: ${info.userKeys}")
+            log.warn("HAPI: Appended user keys to ${attributeName} for ${assetFieldName} from ${info.pickerName}: ${info.userKeys}")
         } else {
             log.warn("Asset field ${assetFieldName} value is missing")
         }
