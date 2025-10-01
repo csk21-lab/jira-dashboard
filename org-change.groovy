@@ -29,10 +29,6 @@ def attributeNames = [
 def pluginAccessor = ComponentAccessor.pluginAccessor
 def objectFacadeClass = pluginAccessor.getClassLoader().findClass("com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectFacade")
 def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(objectFacadeClass)
-def objectTypeAttributeFacadeClass = pluginAccessor.getClassLoader().findClass("com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectTypeAttributeFacade")
-def objectTypeAttributeFacade = ComponentAccessor.getOSGiComponentInstanceOfType(objectTypeAttributeFacadeClass)
-def objectAttributeBeanFactoryClass = pluginAccessor.getClassLoader().findClass("com.riadalabs.jira.plugins.insight.services.model.factory.ObjectAttributeBeanFactory")
-def objectAttributeBeanFactory = ComponentAccessor.getOSGiComponentInstanceOfType(objectAttributeBeanFactoryClass)
 
 // Collect all user picker values and their corresponding info
 def userPickerInfos = userPickerFieldNames.collectWithIndex { pickerName, idx ->
@@ -62,40 +58,14 @@ userPickerInfos.each { info ->
         def assetObject = (assetObjects instanceof List) ? (assetObjects ? assetObjects[0] : null) : assetObjects
 
         if (assetObject) {
-            def assetObjectBean = objectFacade.loadObjectBean(assetObject.id)
-            // Find the attribute by name
-            def attributeBeans = assetObjectBean.getObjectAttributeBeans()
-            def attrBean = attributeBeans.find { attr ->
-                def objectTypeAttributeId = attr.getObjectTypeAttributeId()
-                def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(objectTypeAttributeId)
-                objectTypeAttributeBean.getName() == attributeName
-            }
-            if (attrBean) {
-                def objectTypeAttributeBean = objectTypeAttributeFacade.loadObjectTypeAttributeBean(attrBean.getObjectTypeAttributeId())
-
-                // Get existing values (append mode)
-                def currentUserKeys = []
-                def currentValues = attrBean.getObjectAttributeValueBeans()
-                if (currentValues) {
-                    currentValues.each { v ->
-                        if (v.value) {
-                            currentUserKeys << v.value.toString()
-                        }
-                    }
+            // --- HAPI-style update ---
+            // assetObject is an Insight object bean; for HAPI, assume it has an .update closure method.
+            assetObject.update {
+                setAttribute(attributeName) {
+                    add(*info.userKeys)
                 }
-                // Merge and deduplicate
-                def allUserKeys = (currentUserKeys + info.userKeys).unique()
-                // Build the attribute bean with all user keys
-                def updatedAttrBean = objectAttributeBeanFactory.createObjectAttributeBeanForObject(assetObjectBean, objectTypeAttributeBean, allUserKeys)
-                try {
-                    objectFacade.storeObjectAttributeBean(updatedAttrBean)
-                    log.warn("Appended users to ${attributeName} for ${assetFieldName} from ${info.pickerName}: ${info.userKeys}")
-                } catch (Exception e) {
-                    log.warn("Failed to update ${attributeName} for ${assetFieldName}: " + e.getMessage())
-                }
-            } else {
-                log.warn("No attribute named '${attributeName}' found on asset object ${assetFieldName}")
             }
+            log.warn("HAPI: Appended users to ${attributeName} for ${assetFieldName} from ${info.pickerName}: ${info.userKeys}")
         } else {
             log.warn("Asset field ${assetFieldName} value is missing")
         }
