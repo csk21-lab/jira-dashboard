@@ -30,10 +30,8 @@ def pluginAccessor = ComponentAccessor.pluginAccessor
 def objectFacadeClass = pluginAccessor.getClassLoader().findClass("com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectFacade")
 def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(objectFacadeClass)
 
-// Collect all user picker values and their corresponding info
-def userPickerInfos = userPickerFieldNames.withIndex().collect { entry ->
-    def pickerName = entry[0]
-    def idx = entry[1]
+// Correct Groovy way to collect user picker values and their corresponding info
+def userPickerInfos = userPickerFieldNames.withIndex().collect { pickerName, idx ->
     def userPickerField = customFieldManager.getCustomFieldObjectByName(pickerName)
     def userValue = issue.getCustomFieldValue(userPickerField)
     def userKeys = []
@@ -54,7 +52,6 @@ userPickerInfos.each { info ->
     if (info.userKeys && info.userKeys.size() > 0) {
         def assetFieldName = assetFieldNames[info.idx]
         def attributeName = attributeNames[info.idx]
-
         def assetField = customFieldManager.getCustomFieldObjectByName(assetFieldName)
         def assetObjects = issue.getCustomFieldValue(assetField)
         def assetObject = (assetObjects instanceof List) ? (assetObjects ? assetObjects[0] : null) : assetObjects
@@ -63,7 +60,7 @@ userPickerInfos.each { info ->
             // --- HAPI-style update ---
             assetObject.update {
                 setAttribute(attributeName) {
-                    add(*info.userKeys) // Pass keys as String[]
+                    add(*info.userKeys)
                 }
             }
             log.warn("HAPI: Appended user keys to ${attributeName} for ${assetFieldName} from ${info.pickerName}: ${info.userKeys}")
