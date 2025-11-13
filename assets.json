@@ -1,0 +1,7 @@
+{
+  "fields": {
+    "customfield_11758": [
+      { "id": "{{lookupObjects.id}}" }
+    ]
+  }
+}
