@@ -1,58 +1,48 @@
 import com.atlassian.jira.component.ComponentAccessor
 import com.atlassian.jira.issue.IssueInputParametersImpl
 import com.atlassian.jira.user.ApplicationUsers
-import com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectFacade
-import com.riadalabs.jira.plugins.insight.services.model.ObjectBean
 
-def objectFacade = ComponentAccessor.getOSGiComponentInstanceOfType(ObjectFacade)
-def issueService = ComponentAccessor.issueService
+// Configuration
+def projectKey = "ABCD"                // Your Jira project key
+def issueTypeId = "10000"              // Replace with your issue type ID (number, not name)
+def reporterUsername = "at"            // Username for reporter
+def aqlString = 'objectType = "Sample"'// AQL statement for your Assets search
 
-// -- PARAMETERS TO EDIT --
-def projectKey = "PROJ"
-def issueTypeName = "Task"
-def summary = "AQL Results Table"
-def schemaId = 1 // <-- YOUR schema ID!
-def aqlQuery = 'ObjectType = "YourObjectType"' // Your AQL query
-def attr1 = "Name"
-def attr2 = "Owner"
-def attr3 = "Status"
-def reporterUsername = "at"
-// -------------------------
-
-// Reporter user
+// Set up reporter
 def reporterUser = ComponentAccessor.userManager.getUserByName(reporterUsername)
 
-// Get all matching objects using the facade
-List<ObjectBean> results = objectFacade.findByIQL(schemaId, aqlQuery)
-
+// This is your convenience abstraction, assumed as a custom Assets class/integration available in your Jira
 def tableRows = []
-tableRows << "| ${attr1} | ${attr2} | ${attr3} |"
+tableRows << "| SCValue | SCLINeValue | STValue |"
 tableRows << "| --- | --- | --- |"
 
-results.each { obj ->
-    def n1 = obj.getObjectAttributeBeans().find { it.objectTypeAttribute.name == attr1 }?.objectAttributeValueBeans?.first()?.value ?: ""
-    def n2 = obj.getObjectAttributeBeans().find { it.objectTypeAttribute.name == attr2 }?.objectAttributeValueBeans?.first()?.value ?: ""
-    def n3 = obj.getObjectAttributeBeans().find { it.objectTypeAttribute.name == attr3 }?.objectAttributeValueBeans?.first()?.value ?: ""
-    tableRows << "| ${n1} | ${n2} | ${n3} |"
+def objects = Assets.search(aqlString) // No schemaId needed in your abstraction
+
+objects.each { obj ->
+    // Adjust these attribute names as needed!
+    def scValue = obj['SCValue'] ?: ""
+    def sclValue = obj['SCLINeValue'] ?: ""
+    def stValue = obj['STValue'] ?: ""
+    tableRows << "| ${scValue} | ${sclValue} | ${stValue} |"
 }
 
 def description = tableRows.join("\n")
 def project = ComponentAccessor.projectManager.getProjectByCurrentKey(projectKey)
-def issueType = ComponentAccessor.constantsManager.allIssueTypeObjects.find { it.name == issueTypeName }
 
 def issueInputParameters = new IssueInputParametersImpl()
     .setProjectId(project.id)
-    .setIssueTypeId(issueType.id)
-    .setSummary(summary)
+    .setIssueTypeId(issueTypeId)
+    .setSummary("Sample Issue with Object Data Table")
     .setDescription(description)
     .setReporterId(reporterUser.key)
 
+def issueService = ComponentAccessor.issueService
 def validationResult = issueService.create(ApplicationUsers.toDirectoryUser(reporterUser), issueInputParameters)
 if (validationResult.isValid()) {
     def createResult = issueService.create(ApplicationUsers.toDirectoryUser(reporterUser), validationResult)
     if (createResult.isValid()) {
-        log.debug("Issue created: ${createResult.issue.key} with reporter ${reporterUser.name}")
+        log.warn("Ticket created: ${createResult.issue.key}")
     }
 } else {
-    log.warn("Issue create failed: ${validationResult.errorCollection}")
+    log.error("Issue create failed: ${validationResult.errorCollection}")
 }
