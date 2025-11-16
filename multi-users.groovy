@@ -19,12 +19,16 @@ def changeHolder = new DefaultIssueChangeHolder()
 
 // Validate JQL
 def parseResult = searchService.parseQuery(runningUser, jqlQuery)
-assert parseResult.isValid() : "Invalid JQL query: ${parseResult.errors}"
+if (!parseResult.isValid()) {
+    def errs = parseResult.errors ? parseResult.errors.join('; ') : 'unknown parse error'
+    throw new IllegalArgumentException("Invalid JQL query: ${errs}")
+}
 
 // Search issues
 def query = parseResult.getQuery()
-def searchResult = searchService.search(runningUser, query, PagerFilter.getUnlimitedFilter())
-def issues = searchResult.getIssues()
+// Use a plural name for the search result object and use it consistently below to avoid MissingPropertyException
+def searchResults = searchService.search(runningUser, query, PagerFilter.getUnlimitedFilter())
+def issues = searchResults.getIssues()
 
 def multiUserField = customFieldManager.getCustomFieldObjectByName(multiUserFieldName)
 assert multiUserField : "Custom field not found: ${multiUserFieldName}"
