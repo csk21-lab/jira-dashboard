@@ -26,9 +26,11 @@ if (!parseResult.isValid()) {
 
 // Search issues
 def query = parseResult.getQuery()
-// Use a plural name for the search result object and use it consistently below to avoid MissingPropertyException
+// use an unlimited pager if you truly want every issue
 def searchResults = searchService.search(runningUser, query, PagerFilter.getUnlimitedFilter())
-def issues = searchResults.getIssues()
+
+// IMPORTANT: use getResults() (or .results) — SearchResults does not have getIssues()
+def issues = searchResults.getResults()
 
 def multiUserField = customFieldManager.getCustomFieldObjectByName(multiUserFieldName)
 assert multiUserField : "Custom field not found: ${multiUserFieldName}"
@@ -37,9 +39,12 @@ def userToAppend = userManager.getUserByKey(userKeyToAppend)
 assert userToAppend : "User not found: ${userKeyToAppend}"
 
 issues.each { issue ->
-    def existingUsers = issue.getCustomFieldValue(multiUserField) ?: []
+    // ensure existingUsers is a List (could be null)
+    def existingUsers = (issue.getCustomFieldValue(multiUserField) ?: []) as List
+    // merge de-duplicated
     def updatedUsers = (existingUsers.toSet() + userToAppend).toList()
-    multiUserField.updateValue(null, issue, new ModifiedValue(existingUsers, updatedUsers), changeHolder)
+    // pass runningUser (or a real ApplicationUser) as context instead of null
+    multiUserField.updateValue(runningUser, issue, new ModifiedValue(existingUsers, updatedUsers), changeHolder)
 }
 
 return "Appended user ${userKeyToAppend} to ${issues.size()} issues matching JQL: ${jqlQuery}"
