@@ -4,6 +4,7 @@ import com.atlassian.jira.issue.MutableIssue
 import com.atlassian.jira.issue.util.DefaultIssueChangeHolder
 import com.atlassian.jira.issue.ModifiedValue
 import com.atlassian.jira.event.type.EventDispatchOption
+// MissingPropertyException is in Groovy runtime; no explicit import required
 
 def log = Logger.getLogger("com.acme.SetAssetFieldSpecificIssue")
 
@@ -17,11 +18,14 @@ def customFieldManager = ComponentAccessor.getCustomFieldManager()
 def authContext = ComponentAccessor.getJiraAuthenticationContext()
 def currentUser = authContext.getLoggedInUser()
 
-// Resolve the issue: use binding 'issue' if available, otherwise load by key (no autowiring logs)
+// Resolve the issue: try to reference the 'issue' variable directly so ScriptRunner will attempt autowiring
 MutableIssue theIssue
-if (this.binding?.hasVariable('issue')) {
-    theIssue = binding.getVariable('issue') as MutableIssue
-} else {
+try {
+    // Accessing 'issue' directly (instead of checking binding.hasVariable('issue')) allows ScriptRunner
+    // to attempt autowiring and therefore emit its autowiring logs if enabled.
+    theIssue = issue as MutableIssue
+} catch (MissingPropertyException mpe) {
+    // 'issue' wasn't provided in the binding — fall back to loading by key (no autowiring logs)
     theIssue = issueManager.getIssueByCurrentKey(targetIssueKey) as MutableIssue
     if (!theIssue) {
         log.warn("Issue ${targetIssueKey} not found")
