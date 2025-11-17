@@ -1,5 +1,6 @@
 import com.atlassian.jira.component.ComponentAccessor
 import org.apache.log4j.Logger
+import org.apache.log4j.Level
 import com.atlassian.jira.issue.MutableIssue
 import com.atlassian.jira.issue.util.DefaultIssueChangeHolder
 import com.atlassian.jira.issue.ModifiedValue
@@ -7,6 +8,11 @@ import com.atlassian.jira.event.type.EventDispatchOption
 // MissingPropertyException is in Groovy runtime; no explicit import required
 
 def log = Logger.getLogger("com.acme.SetAssetFieldSpecificIssue")
+
+// Disable noisy debug logs from migrationsystem and migrationutils
+// Set to WARN to suppress DEBUG-level output
+Logger.getLogger("migrationsystem").setLevel(Level.WARN)
+Logger.getLogger("migrationutils").setLevel(Level.WARN)
 
 // Configure these for your environment
 String targetIssueKey = "ABC-212"           // used when 'issue' is not in the binding
