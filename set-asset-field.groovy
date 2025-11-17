@@ -1,89 +1,41 @@
 import com.atlassian.jira.component.ComponentAccessor
-import com.riadalabs.jira.plugins.insight.channel.external.api.facade.IQLFacade
-import com.atlassian.jira.issue.MutableIssue
-import com.atlassian.jira.issue.fields.CustomField
-import com.atlassian.jira.issue.util.DefaultIssueChangeHolder
-import com.atlassian.jira.issue.ModifiedValue
-import com.atlassian.jira.event.type.EventDispatchOption
 import org.apache.log4j.Logger
+import com.atlassian.jira.issue.MutableIssue
 
 def log = Logger.getLogger("com.acme.SetAssetFieldSpecificIssue")
 
 // Configure these for your environment
-String targetIssueKey = "ABC-212"
-String assetsCustomFieldName = "ON"
-String assetObjectKey = "ABC-912536"
-String objectTypeName = "YourObjectTypeName" // <-- Replace with your actual type name
+String targetIssueKey = "ABC-212"           // used when 'issue' is not in the binding
+String assetsCustomFieldName = "ON"         // the Assets/Insight custom field name
+String assetObjectKey = "ABC-912536"       // the asset object Key you want to set (single-value)
 
 def issueManager = ComponentAccessor.getIssueManager()
-def customFieldManager = ComponentAccessor.getCustomFieldManager()
-def iqlFacade = ComponentAccessor.getOSGiComponentInstanceOfType(IQLFacade)
-def authContext = ComponentAccessor.getJiraAuthenticationContext()
-def currentUser = authContext.getLoggedInUser()
 
-if (!currentUser) {
-    log.warn("No logged in user found. Script must run with a user context.")
-}
-
-def issue = issueManager.getIssueByCurrentKey(targetIssueKey) as MutableIssue
-if (!issue) {
-    log.warn("Issue ${targetIssueKey} not found")
-    return
-}
-
-def assetsCustomField = customFieldManager.getCustomFieldObjectByName(assetsCustomFieldName)
-if (!assetsCustomField) {
-    log.warn("Custom field '${assetsCustomFieldName}' not found")
-    return
-}
-
-// Build IQL and find the asset object bean
-def iql = 'objectType = "' + objectTypeName + '" AND Key = "' + assetObjectKey + '"'
-def objectBeans = iqlFacade.findObjectsByIQL(iql)
-def assetObjectBean = (objectBeans && objectBeans.size() > 0) ? objectBeans[0] : null
-
-if (!assetObjectBean) {
-    log.warn("Asset object not found with IQL: ${iql}")
-    return
-}
-
-// Prepare new value (single-value holder)
-def oldValue = issue.getCustomFieldValue(assetsCustomField)
-def newValue = assetObjectBean
-
-// Debug logging: types and contents so we can see what's actually being used
-try {
-    log.warn("DEBUG: assetObjectBean class=${assetObjectBean?.getClass()?.name} id=${assetObjectBean?.id} name=${assetObjectBean?.name} objectKey=${assetObjectBean?.objectKey}")
-} catch (Exception ignored) {}
-try {
-    log.warn("DEBUG: oldValue class=${oldValue?.getClass()?.name} value=${oldValue}")
-} catch (Exception ignored) {}
-
-boolean updated = false
-
-// Try the usual updateValue approach first
-try {
-    def changeHolder = new DefaultIssueChangeHolder()
-    assetsCustomField.updateValue(null, issue, new ModifiedValue(oldValue, newValue), changeHolder)
-    issueManager.updateIssue(currentUser, issue, EventDispatchOption.ISSUE_UPDATED, false)
-    log.warn("SUCCESS: set asset (via updateValue) '${assetObjectBean?.name}' on issue '${issue.key}' (oldValue=${oldValue})")
-    updated = true
-} catch (Exception e) {
-    log.warn("updateValue failed: ${e.class.name}: ${e.message}", e)
-}
-
-// If that failed, try setting the field directly on the issue as a fallback
-if (!updated) {
-    try {
-        issue.setCustomFieldValue(assetsCustomField, newValue)
-        issueManager.updateIssue(currentUser, issue, EventDispatchOption.ISSUE_UPDATED, false)
-        log.warn("SUCCESS: set asset (via setCustomFieldValue fallback) '${assetObjectBean?.name}' on issue '${issue.key}' (oldValue=${oldValue})")
-        updated = true
-    } catch (Exception e2) {
-        log.warn("Fallback setCustomFieldValue also failed: ${e2.class.name}: ${e2.message}", e2)
+// Resolve the issue: use binding 'issue' if available (ScriptRunner), otherwise load by key
+MutableIssue theIssue
+if (this.binding?.hasVariable('issue')) {
+    theIssue = binding.getVariable('issue') as MutableIssue
+    log.warn("Using issue from binding: ${theIssue?.key}")
+} else {
+    theIssue = issueManager.getIssueByCurrentKey(targetIssueKey) as MutableIssue
+    if (!theIssue) {
+        log.warn("Issue ${targetIssueKey} not found")
+        return
     }
+    log.warn("Loaded issue: ${theIssue.key}")
 }
 
-if (!updated) {
-    log.warn("FAILED to set asset field after both primary and fallback attempts. See previous logs for exceptions.")
+try {
+    // ScriptRunner DSL: set by asset object Key (first-time set, no old value needed)
+    theIssue.update {
+        setCustomFieldValue(assetsCustomFieldName) {
+            set(assetObjectKey)   // single-value: the object Key string
+        }
+    }
+    log.warn("SUCCESS: set asset ${assetObjectKey} on ${theIssue.key} via issue.update DSL")
+} catch (MissingMethodException mme) {
+    // DSL not available in this context — log and instruct fallback
+    log.warn("ScriptRunner issue.update DSL not available here (MissingMethodException). Use explicit API fallback.", mme)
+} catch (Exception e) {
+    log.warn("Failed to set asset using issue.update DSL: ${e.class.name}: ${e.message}", e)
 }
