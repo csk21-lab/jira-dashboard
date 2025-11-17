@@ -47,19 +47,43 @@ if (!assetObjectBean) {
     return
 }
 
-// Prepare new value depending on whether the CF is multi-valued
+// Prepare new value (single-value holder)
 def oldValue = issue.getCustomFieldValue(assetsCustomField)
-def newValue = assetsCustomField.isMultiple() || assetsCustomField.getCustomFieldType().isList() ? [assetObjectBean] : assetObjectBean
+def newValue = assetObjectBean
 
+// Debug logging: types and contents so we can see what's actually being used
 try {
-    // Update the custom field value on the issue (in-memory)
+    log.warn("DEBUG: assetObjectBean class=${assetObjectBean?.getClass()?.name} id=${assetObjectBean?.id} name=${assetObjectBean?.name} objectKey=${assetObjectBean?.objectKey}")
+} catch (Exception ignored) {}
+try {
+    log.warn("DEBUG: oldValue class=${oldValue?.getClass()?.name} value=${oldValue}")
+} catch (Exception ignored) {}
+
+boolean updated = false
+
+// Try the usual updateValue approach first
+try {
     def changeHolder = new DefaultIssueChangeHolder()
     assetsCustomField.updateValue(null, issue, new ModifiedValue(oldValue, newValue), changeHolder)
-
-    // Persist the issue change and fire events so Jira updates indices and listeners
     issueManager.updateIssue(currentUser, issue, EventDispatchOption.ISSUE_UPDATED, false)
-
-    log.warn("Set asset '${assetObjectBean.name}' on issue '${issue.key}' (oldValue=${oldValue})")
+    log.warn("SUCCESS: set asset (via updateValue) '${assetObjectBean?.name}' on issue '${issue.key}' (oldValue=${oldValue})")
+    updated = true
 } catch (Exception e) {
-    log.warn("FAILED to set asset field: ${e.message}", e)
+    log.warn("updateValue failed: ${e.class.name}: ${e.message}", e)
+}
+
+// If that failed, try setting the field directly on the issue as a fallback
+if (!updated) {
+    try {
+        issue.setCustomFieldValue(assetsCustomField, newValue)
+        issueManager.updateIssue(currentUser, issue, EventDispatchOption.ISSUE_UPDATED, false)
+        log.warn("SUCCESS: set asset (via setCustomFieldValue fallback) '${assetObjectBean?.name}' on issue '${issue.key}' (oldValue=${oldValue})")
+        updated = true
+    } catch (Exception e2) {
+        log.warn("Fallback setCustomFieldValue also failed: ${e2.class.name}: ${e2.message}", e2)
+    }
+}
+
+if (!updated) {
+    log.warn("FAILED to set asset field after both primary and fallback attempts. See previous logs for exceptions.")
 }
