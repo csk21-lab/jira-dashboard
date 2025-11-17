@@ -15,12 +15,13 @@ Logger.getLogger("migrationsystem").setLevel(Level.WARN)
 Logger.getLogger("migrationutils").setLevel(Level.WARN)
 
 // Configure these for your environment
-String targetIssueKey = "ABC-212"            // used when 'issue' is not in the binding
-String assetsCustomFieldName = "ON"          // the Assets/Insight custom field name
-String assetObjectKey = "ABC-912536"         // the asset object Key you want to set (single-value)
+// If you want the script to run "for current issue" in ScriptRunner contexts, leave targetIssueKey as null.
+// Otherwise set a fallback issue key (e.g. "ABC-212") to operate when no 'issue' is available in the binding.
+String targetIssueKey = null            // used only when 'issue' is not in the binding
+String assetsCustomFieldName = "ON"     // the Assets/Insight custom field name
+String assetObjectKey = "ABC-912536"    // the asset object Key you want to set (single-value)
 
 // Additional fields you asked to update
-// Adjust names and values to your needs (could be Strings, numbers, maps, lists depending on field type)
 String extraField1Name = "Extra Field 1"
 def extraField1Value = "Some value for field 1"
 
@@ -32,17 +33,28 @@ def customFieldManager = ComponentAccessor.getCustomFieldManager()
 def authContext = ComponentAccessor.getJiraAuthenticationContext()
 def currentUser = authContext.getLoggedInUser()
 
-// Resolve the issue: try to reference the 'issue' variable directly so ScriptRunner will attempt autowiring
-MutableIssue theIssue
-try {
-    // Accessing 'issue' directly (instead of checking binding.hasVariable('issue')) allows ScriptRunner
-    // to attempt autowiring and therefore emit its autowiring logs if enabled.
-    theIssue = issue as MutableIssue
-} catch (MissingPropertyException mpe) {
-    // 'issue' wasn't provided in the binding — fall back to loading by key (no autowiring logs)
-    theIssue = issueManager.getIssueByCurrentKey(targetIssueKey) as MutableIssue
-    if (!theIssue) {
-        log.warn("Issue ${targetIssueKey} not found")
+// Resolve the issue: prefer the 'issue' variable from the binding (current issue).
+MutableIssue theIssue = null
+def scriptBinding = this.binding
+if (scriptBinding?.hasVariable('issue') && scriptBinding.issue) {
+    try {
+        theIssue = scriptBinding.issue as MutableIssue
+    } catch (Exception e) {
+        log.warn("Found 'issue' in binding but failed to coerce to MutableIssue: ${e.class.name}: ${e.message}", e)
+    }
+}
+
+if (!theIssue) {
+    if (targetIssueKey) {
+        theIssue = issueManager.getIssueByCurrentKey(targetIssueKey) as MutableIssue
+        if (!theIssue) {
+            log.warn("Fallback issue ${targetIssueKey} not found; aborting")
+            return
+        } else {
+            log.info("Using fallback issue ${targetIssueKey}")
+        }
+    } else {
+        log.warn("No 'issue' in binding and no targetIssueKey configured; script is configured to run for the current issue only. Aborting.")
         return
     }
 }
@@ -71,14 +83,13 @@ def updateFieldExplicitly = { String fieldName, def newValue ->
 }
 
 try {
-    // Try ScriptRunner DSL first: set all three fields in a single update closure
+    // Try ScriptRunner DSL first: set all three fields in a single update closure (works when running in contexts that provide DSL)
     theIssue.update {
         // Assets field often requires a set(...) block with the object Key
         setCustomFieldValue(assetsCustomFieldName) {
             set(assetObjectKey)
         }
         // For the two additional fields, use a straightforward set (works for simple values)
-        // If these require special handling (objects/option objects), adjust accordingly.
         setCustomFieldValue(extraField1Name) {
             set(extraField1Value)
         }
@@ -96,9 +107,7 @@ try {
 }
 
 // Explicit API fallback: update each field individually
-// Assets field: set by object Key (single-value)
 updateFieldExplicitly(assetsCustomFieldName, assetObjectKey)
-// Extra fields
 updateFieldExplicitly(extraField1Name, extraField1Value)
 updateFieldExplicitly(extraField2Name, extraField2Value)
 
