@@ -1,29 +1,52 @@
-//Script to create subtask based on element connect field 
-
 import com.atlassian.jira.component.ComponentAccessor
+import groovy.json.JsonSlurper
 
-def issue = issue // Current issue context
-
-// Replace with your Elements Connect custom field ID
-def customFieldId = "customfield_12345"
+def issueManager = ComponentAccessor.issueManager
+def issue = issueManager.getIssueByCurrentKey("RES-1898577") // Replace with your test issue key
+def customFieldId = "customfield_25330"
 def customField = ComponentAccessor.customFieldManager.getCustomFieldObject(customFieldId)
-def selectedValues = issue.getCustomFieldValue(customField)
+def selectedValuesRaw = issue.getCustomFieldValue(customField)
+log.warn("selectedValuesRaw : ${selectedValuesRaw}")
+def issueid = issue.id
+log.warn("issueid : ${issueid}")
 
-if (selectedValues) {
+if (selectedValuesRaw) {
+    // Parse the JSON string from Elements Connect field
+    def json = new JsonSlurper().parseText(selectedValuesRaw.toString())
+    def selectedValues = json.keys // This is now a list: ["ABC_TEST", "XYZ_123", "ABCD_REST"]
+
     def user = ComponentAccessor.jiraAuthenticationContext.loggedInUser
     def issueService = ComponentAccessor.getIssueService()
+    def issueLinkManager = ComponentAccessor.getIssueLinkManager()
+    def linkTypeName = "relates" // Change to your desired link type name
+
+    // Get the link type object by name
+    def linkTypeManager = ComponentAccessor.getComponent(com.atlassian.jira.issue.link.IssueLinkTypeManager)
+    def linkType = linkTypeManager.getIssueLinkTypesByName(linkTypeName)?.find { it }
+
     selectedValues.each { value ->
         def issueInputParameters = issueService.newIssueInputParameters()
         issueInputParameters
             .setProjectId(issue.projectObject.id)
-            .setIssueTypeId("5") // Replace with your sub-task issue type ID
-            .setSummary(value.toString()) // Set summary to the selected value
+            .setIssueTypeId("10301") // Replace with your sub-task issue type ID
+            .setSummary(value.toString())
             .setReporterId(user.name)
-            .setParentIssueId(issue.id)
 
+        // Pass the parent issue's ID as the second parameter
         def validationResult = issueService.validateSubTaskCreate(user, issue.id, issueInputParameters)
         if (validationResult.isValid()) {
-            issueService.create(user, validationResult)
+            def result = issueService.create(user, validationResult)
+            if (result.isValid() && linkType) {
+                def subTaskIssue = result.issue
+                // Link the sub-task to the parent with the specified link type
+                issueLinkManager.createIssueLink(
+                    issue.id, // source (parent)
+                    subTaskIssue.id, // destination (sub-task)
+                    linkType.id as Long,
+                    1L,
+                    user
+                )
+            }
         }
     }
 }
