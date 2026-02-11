@@ -2,8 +2,8 @@ import com.atlassian.jira.component.ComponentAccessor
 import groovy.json.JsonSlurper
 
 def issueManager = ComponentAccessor.issueManager
-def issue = issueManager.getIssueByCurrentKey("RES-1898577") // Replace with your test issue key
-def customFieldId = "customfield_25330"
+def issue = issueManager.getIssueByCurrentKey("ABC-189") // Replace with your test issue key
+def customFieldId = "customfield_10000"
 def customField = ComponentAccessor.customFieldManager.getCustomFieldObject(customFieldId)
 def selectedValuesRaw = issue.getCustomFieldValue(customField)
 log.warn("selectedValuesRaw : ${selectedValuesRaw}")
@@ -28,7 +28,7 @@ if (selectedValuesRaw) {
         def issueInputParameters = issueService.newIssueInputParameters()
         issueInputParameters
             .setProjectId(issue.projectObject.id)
-            .setIssueTypeId("10301") // Replace with your sub-task issue type ID
+            .setIssueTypeId("10300") // Replace with your sub-task issue type ID
             .setSummary(value.toString())
             .setReporterId(user.name)
 
