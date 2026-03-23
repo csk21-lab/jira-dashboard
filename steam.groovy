@@ -119,3 +119,16 @@ issue.update {
   // Multi User Picker field
   setCustomFieldValue(multiUserFieldName) { set(members) }   // replace
 }
+
+
+
+/*
+issue.update {
+    if (refOKey)  setCustomFieldValue("O")     { set(refOKey) }
+    if (refOTKey) setCustomFieldValue("OT")    { set(refOTKey) }
+    if (refOFKey) setCustomFieldValue("OF")    { set(refOFKey) }
+    if (sTeamKey) setCustomFieldValue("STeam") { set(sTeamKey) }
+}
+
+
+*/
